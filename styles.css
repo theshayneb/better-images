@@ -1,0 +1,30 @@
+.attachment-organizer-preview-modal .ao-diff-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+}
+
+.attachment-organizer-preview-modal .ao-diff-row .ao-from {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.attachment-organizer-preview-modal .ao-diff-row .ao-to {
+  color: var(--text-normal);
+}
+
+.attachment-organizer-preview-modal .ao-summary {
+  margin-bottom: 8px;
+  font-weight: var(--font-medium);
+}
+
+.attachment-organizer-settings .ao-extension-override-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+}
