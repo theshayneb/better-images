@@ -2,8 +2,6 @@
 
 Organizes your notes' attachments into a folder/filename structure you define — and actually gets the edge cases right.
 
-[![Buy Me A Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/miroff)
-
 ## Why another attachment-organizing plugin?
 
 Every attachment-management plugin for Obsidian promises the same thing: move your images and files into tidy, templated folders instead of leaving them scattered next to your notes. In practice, the existing options tend to fall down on the same handful of edge cases:
@@ -70,3 +68,6 @@ Symlink the build output into a test vault's `.obsidian/plugins/attachment-stewa
 ## License
 
 MIT
+
+
+[![Buy Me A Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/miroff)
