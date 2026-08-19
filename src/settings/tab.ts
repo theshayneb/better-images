@@ -17,6 +17,8 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
     super(app, plugin);
   }
 
+  // Imperative display() is deprecated since Obsidian 1.13.0 in favor of a
+  // declarative getSettingDefinitions() API — not migrated yet, see ROADMAP.md.
   display(): void {
     const { containerEl } = this;
     containerEl.empty();

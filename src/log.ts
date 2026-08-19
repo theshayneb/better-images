@@ -12,7 +12,6 @@ export function configureLogging(opts: { debug: boolean; notifications: boolean 
 
 export const log = {
   debug(...args: unknown[]): void {
-    // eslint-disable-next-line no-console -- gated behind the opt-in "Debug logging" setting, not incidental logging
     if (debugEnabled) console.log(PREFIX, ...args);
   },
   warn(...args: unknown[]): void {

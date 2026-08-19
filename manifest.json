@@ -1,7 +1,7 @@
 {
   "id": "attachment-steward",
   "name": "Attachment Steward",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "minAppVersion": "1.6.6",
   "description": "Organizes attachments into templated folders and filenames - never loses the original filename, never breaks links elsewhere, and catches bulk imports (e.g. from Apple Notes) the moment they land.",
   "author": "miroff",

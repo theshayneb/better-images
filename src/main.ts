@@ -159,7 +159,10 @@ export default class AttachmentOrganizerPlugin extends Plugin {
     void this.store.saveNow().catch((err) => log.error("failed to save on unload", err));
   }
 
-  /** Re-render the settings tab so it reflects changes made elsewhere (context menu, folder rename) without the user having to close and reopen it. Cheap no-op if the tab isn't currently open. */
+  /**
+   * Re-render the settings tab so it reflects changes made elsewhere (context menu, folder rename) without the user having to close and reopen it. Cheap no-op if the tab isn't currently open.
+   * Calls the deprecated display() — see ROADMAP.md for the getSettingDefinitions() migration this will need to follow.
+   */
   private refreshSettingsTab(): void {
     if (this.settingTab.containerEl.isShown()) this.settingTab.display();
   }
