@@ -90,7 +90,7 @@ export default class AttachmentOrganizerPlugin extends Plugin {
           // subfolder) hasn't settled to the new paths yet — re-rendering
           // synchronously here makes an existing folder briefly show as
           // "not found" until the settings tab is next opened.
-          setTimeout(() => this.refreshSettingsTab(), 0);
+          window.setTimeout(() => this.refreshSettingsTab(), 0);
         }
       })
     );
@@ -152,8 +152,11 @@ export default class AttachmentOrganizerPlugin extends Plugin {
     this.addSettingTab(this.settingTab);
   }
 
-  async onunload(): Promise<void> {
-    await this.store.saveNow();
+  onunload(): void {
+    // Plugin.onunload isn't awaited by Obsidian, so this stays synchronous
+    // and fires the flush as a detached promise with its own error handling
+    // instead of silently returning one Obsidian will never wait on.
+    void this.store.saveNow().catch((err) => log.error("failed to save on unload", err));
   }
 
   /** Re-render the settings tab so it reflects changes made elsewhere (context menu, folder rename) without the user having to close and reopen it. Cheap no-op if the tab isn't currently open. */

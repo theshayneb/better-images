@@ -32,7 +32,7 @@ export class Store {
   readonly byNote = new Map<string, Set<string>>();
   readonly byMd5 = new Map<string, string[]>();
 
-  private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private saveTimer: number | null = null;
 
   constructor(private readonly plugin: Plugin) {}
 
@@ -165,8 +165,8 @@ export class Store {
   }
 
   scheduleSave(): void {
-    if (this.saveTimer) clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => {
+    if (this.saveTimer) window.clearTimeout(this.saveTimer);
+    this.saveTimer = window.setTimeout(() => {
       this.saveTimer = null;
       void this.saveNow();
     }, SAVE_DEBOUNCE_MS);
@@ -174,7 +174,7 @@ export class Store {
 
   async saveNow(): Promise<void> {
     if (this.saveTimer) {
-      clearTimeout(this.saveTimer);
+      window.clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
     await this.plugin.saveData(this.data);

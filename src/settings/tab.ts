@@ -27,7 +27,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
       configureLogging({ debug: settings.debugLogging, notifications: !settings.disableNotifications });
     };
 
-    containerEl.createEl("h2", { text: "Exclusions" });
+    new Setting(containerEl).setName("Exclusions").setHeading();
 
     new Setting(containerEl)
       .setName("Exclude extension pattern")
@@ -42,11 +42,12 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           })
       );
 
-    containerEl.createEl("h3", { text: "Excluded folders" });
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: 'Attachments already inside these folders are never touched. Start typing to pick from your existing folders, or type a path that doesn\'t exist yet (e.g. for a folder you plan to create). Same effect as right-clicking a folder → Attachment Steward → "Exclude this folder".',
-    });
+    new Setting(containerEl)
+      .setName("Excluded folders")
+      .setHeading()
+      .setDesc(
+        'Attachments already inside these folders are never touched. Start typing to pick from your existing folders, or type a path that doesn\'t exist yet (e.g. for a folder you plan to create). Same effect as right-clicking a folder → Attachment Steward → "Exclude this folder".'
+      );
     this.renderExcludedFolders(containerEl, settings.excludedFolders, save);
 
     new Setting(containerEl).addButton((btn) =>
@@ -57,11 +58,12 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
       })
     );
 
-    containerEl.createEl("h2", { text: "Location" });
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: "These settings are independent from Obsidian's own \"Default location for new attachments\" under Settings → Files and links. That core setting only decides where a file lands the instant you attach it — this plugin then reorganizes it from there, right away, using the rules below.",
-    });
+    new Setting(containerEl)
+      .setName("Location")
+      .setHeading()
+      .setDesc(
+        "These settings are independent from Obsidian's own \"Default location for new attachments\" under Settings → Files and links. That core setting only decides where a file lands the instant you attach it — this plugin then reorganizes it from there, right away, using the rules below."
+      );
 
     new Setting(containerEl)
       .setName("Attachment root location")
@@ -131,7 +133,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
     );
     updateExample();
 
-    containerEl.createEl("h2", { text: "Behaviour" });
+    new Setting(containerEl).setName("Behaviour").setHeading();
 
     new Setting(containerEl)
       .setName("Automatically rename attachment")
@@ -175,11 +177,10 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
         })
       );
 
-    containerEl.createEl("h2", { text: "Extension overrides" });
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: "Use a different folder/filename template for specific file extensions — e.g. keep PDFs in their own folder, separate from images.",
-    });
+    new Setting(containerEl)
+      .setName("Extension overrides")
+      .setHeading()
+      .setDesc("Use a different folder/filename template for specific file extensions — e.g. keep PDFs in their own folder, separate from images.");
     this.renderExtensionOverrides(containerEl, settings.extensionOverrides, save);
 
     new Setting(containerEl).addButton((btn) =>
@@ -194,7 +195,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
       })
     );
 
-    containerEl.createEl("h2", { text: "Maintenance" });
+    new Setting(containerEl).setName("Maintenance").setHeading();
 
     new Setting(containerEl).setName("Managed attachments").setDesc(`${this.plugin.store.count()} tracked`);
 

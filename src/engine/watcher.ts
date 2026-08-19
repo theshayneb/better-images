@@ -17,11 +17,11 @@ const PROCESS_DEBOUNCE_MS = 200;
  */
 export class Watcher {
   private readonly pending = new Map<string, number>(); // attachPath -> seenAt
-  private readonly settleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly settleTimers = new Map<string, number>();
   private readonly claims = new Map<string, string>(); // attachPath -> notePath
   private readonly toProcess = new Set<string>();
   readonly internalMoves = new InternalMoveTracker();
-  private processTimer: ReturnType<typeof setTimeout> | null = null;
+  private processTimer: number | null = null;
 
   constructor(private readonly app: App, private readonly store: Store) {}
 
@@ -118,7 +118,7 @@ export class Watcher {
   }
 
   private scheduleSettle(attachPath: string): void {
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       this.settleTimers.delete(attachPath);
       if (!this.pending.has(attachPath)) return; // claimed meanwhile
       const owner = this.findOwner(attachPath);
@@ -137,14 +137,14 @@ export class Watcher {
   private clearSettle(attachPath: string): void {
     const timer = this.settleTimers.get(attachPath);
     if (timer) {
-      clearTimeout(timer);
+      window.clearTimeout(timer);
       this.settleTimers.delete(attachPath);
     }
   }
 
   private scheduleProcess(): void {
     if (this.processTimer) return;
-    this.processTimer = setTimeout(() => {
+    this.processTimer = window.setTimeout(() => {
       this.processTimer = null;
       void this.drainQueue();
     }, PROCESS_DEBOUNCE_MS);

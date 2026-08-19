@@ -1,6 +1,6 @@
 import esbuild from "esbuild";
-import builtins from "builtin-modules";
 import chokidar from "chokidar";
+import { builtinModules } from "node:module";
 
 const prod = process.argv[2] === "production";
 
@@ -24,7 +24,7 @@ const ctx = await esbuild.context({
     "@lezer/common",
     "@lezer/highlight",
     "@lezer/lr",
-    ...builtins,
+    ...builtinModules,
   ],
   sourcemap: prod ? false : "inline",
   minify: prod,

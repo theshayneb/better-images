@@ -76,7 +76,7 @@ export async function resolveDestination(app: App, file: TFile, record: Attachme
 
   // Walk up from the previously-chosen suffix so a deduped file keeps its
   // number across reapplies instead of renumbering.
-  // eslint-disable-next-line no-constant-condition
+  // eslint-disable-next-line no-constant-condition -- loop bound is the break below, not the condition
   while (true) {
     const existing = app.vault.getAbstractFileByPath(destPath);
     if (!existing || pathsEqual(existing.path, file.path)) break;
