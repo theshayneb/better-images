@@ -1,6 +1,20 @@
 import { moment } from "obsidian";
 
 /**
+ * Obsidian's `moment` re-export types as `typeof Moment`, which only
+ * resolves correctly if the consumer's environment also resolves the
+ * `moment` package's own types — not guaranteed in every type-checking
+ * environment. Isolating the cast here means a failure to resolve degrades
+ * to `any` in exactly one place instead of leaking into every call site.
+ */
+type MomentFn = (input?: number) => { format(fmt?: string): string };
+const momentFn = moment as unknown as MomentFn;
+
+export function formatDate(timestamp: number | undefined, format: string): string {
+  return momentFn(timestamp).format(format);
+}
+
+/**
  * Deliberately contains NO field referencing the attachment's current
  * filename. Every value here comes from the frozen AttachmentRecord (or the
  * owning note's current identity), never from the file as it exists on disk
@@ -43,7 +57,7 @@ export function render(tpl: string, ctx: TemplateContext, mode: RenderMode): str
     let raw: string;
     switch (variable) {
       case "date":
-        raw = moment(ctx.importedAt).format(ctx.dateFormat);
+        raw = formatDate(ctx.importedAt, ctx.dateFormat);
         break;
       case "notepath":
         raw = ctx.notePath;

@@ -1,6 +1,7 @@
-import { App, moment, PluginSettingTab, Setting, TFolder } from "obsidian";
+import { App, PluginSettingTab, Setting, TFolder } from "obsidian";
 import type AttachmentOrganizerPlugin from "../main";
 import { configureLogging } from "../log";
+import { formatDate } from "../core/template";
 import { FolderSuggest } from "../ui/folderSuggest";
 import { ExcludedFolder, ExtensionOverride, RootMode } from "./types";
 
@@ -119,7 +120,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
     const dateExampleEl = dateFormatSetting.descEl.createDiv();
     const updateExample = (): void => {
       try {
-        dateExampleEl.setText(`Example: ${moment().format(settings.dateFormat)}`);
+        dateExampleEl.setText(`Example: ${formatDate(undefined, settings.dateFormat)}`);
       } catch {
         dateExampleEl.setText("Invalid moment.js format");
       }

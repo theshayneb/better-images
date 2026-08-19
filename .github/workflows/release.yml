@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      attestations: write
+      id-token: write
     steps:
       - uses: actions/checkout@v5
 
@@ -21,6 +23,13 @@ jobs:
         run: |
           npm install
           npm run build
+
+      - name: Attest build provenance for release assets
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            main.js
+            styles.css
 
       - name: Verify manifest version matches tag
         run: |
