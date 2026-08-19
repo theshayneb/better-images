@@ -1,7 +1,8 @@
-import { App, TFile } from "obsidian";
+import { App, TFile, TFolder } from "obsidian";
 import { shouldManage } from "../core/filters";
 import { ensureRecordHash } from "../core/hash";
 import { resolveDestination } from "../core/resolve";
+import { notesUnderFolder } from "../core/scope";
 import { InternalMoveTracker, processAttachment } from "../engine/organizer";
 import { log } from "../log";
 import { Store } from "../store/store";
@@ -95,5 +96,15 @@ export function reapplyActiveNoteCommand(app: App, store: Store, internalMoves: 
       return;
     }
     await reapplyRules(app, store, store.pathsForNote(note.path), internalMoves, `Reapply rules for "${note.basename}"`);
+  };
+}
+
+export function reapplyFolderCommand(app: App, store: Store, internalMoves: InternalMoveTracker): (folder: TFolder) => Promise<void> {
+  return async (folder) => {
+    const paths = new Set<string>();
+    for (const note of notesUnderFolder(app, folder)) {
+      for (const path of store.pathsForNote(note.path)) paths.add(path);
+    }
+    await reapplyRules(app, store, [...paths], internalMoves, `Reapply rules for "${folder.path || "/"}"`);
   };
 }

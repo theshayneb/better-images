@@ -21,10 +21,46 @@
   font-weight: var(--font-medium);
 }
 
+.attachment-organizer-preview-modal .ao-orphan-row {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+}
+
 .attachment-organizer-settings .ao-extension-override-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   padding: 6px 0;
+}
+
+.attachment-organizer-settings .ao-excluded-folder-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.attachment-organizer-settings .ao-excluded-folder-row input[type="text"] {
+  min-width: 220px;
+}
+
+.attachment-organizer-settings .ao-excluded-folder-hint {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.attachment-organizer-settings .ao-excluded-folder-missing {
+  border-left: 2px solid var(--text-error);
+  padding-left: 8px;
+}
+
+.attachment-organizer-settings .ao-excluded-folder-warning {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-error);
+  white-space: nowrap;
 }

@@ -1,5 +1,6 @@
-import { App, TFile } from "obsidian";
+import { App, TFile, TFolder } from "obsidian";
 import { referencedAttachments } from "../core/links";
+import { notesUnderFolder } from "../core/scope";
 import { InternalMoveTracker } from "../engine/organizer";
 import { log } from "../log";
 import { Store } from "../store/store";
@@ -69,5 +70,11 @@ export function adoptActiveNoteCommand(app: App, store: Store, internalMoves: In
 export function adoptVaultCommand(app: App, store: Store, internalMoves: InternalMoveTracker): () => Promise<void> {
   return async () => {
     await adopt(app, store, app.vault.getMarkdownFiles(), internalMoves, "Adopt unmanaged attachments in the whole vault");
+  };
+}
+
+export function adoptFolderCommand(app: App, store: Store, internalMoves: InternalMoveTracker): (folder: TFolder) => Promise<void> {
+  return async (folder) => {
+    await adopt(app, store, notesUnderFolder(app, folder), internalMoves, `Adopt unmanaged attachments in "${folder.path || "/"}"`);
   };
 }

@@ -23,3 +23,20 @@ export function referencedAttachments(app: App, note: TFile, cache: CachedMetada
   }
   return out;
 }
+
+/**
+ * Every file path that's the resolved target of at least one link/embed
+ * anywhere in the vault — the same source of truth `Watcher.findOwner` uses
+ * to decide whether a newly-seen attachment already has an owner. A file
+ * absent from this set has no note pointing at it at all.
+ */
+export function allLinkedPaths(app: App): Set<string> {
+  const out = new Set<string>();
+  const resolved = app.metadataCache.resolvedLinks;
+  for (const sourcePath in resolved) {
+    for (const destPath in resolved[sourcePath]) {
+      out.add(destPath);
+    }
+  }
+  return out;
+}

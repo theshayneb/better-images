@@ -6,6 +6,11 @@ export interface ExtensionOverride {
   formatTemplate: string;
 }
 
+export interface ExcludedFolder {
+  path: string;
+  includeSubpaths: boolean;
+}
+
 export interface Settings {
   rootMode: RootMode;
   root: string;
@@ -13,8 +18,7 @@ export interface Settings {
   formatTemplate: string;
   dateFormat: string;
   excludeExtensionPattern: string;
-  excludedPaths: string;
-  excludeSubpaths: boolean;
+  excludedFolders: ExcludedFolder[];
   extensionOverrides: ExtensionOverride[];
   autoRenameOnNoteRename: boolean;
   cleanEmptyFolders: boolean;
@@ -30,8 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   formatTemplate: "${date}-${originalname}",
   dateFormat: "YYYY-MM-DD-HH_mm_ss_SSS",
   excludeExtensionPattern: "",
-  excludedPaths: "",
-  excludeSubpaths: false,
+  excludedFolders: [],
   extensionOverrides: [],
   autoRenameOnNoteRename: true,
   cleanEmptyFolders: true,

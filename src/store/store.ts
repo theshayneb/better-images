@@ -1,9 +1,26 @@
 import type { Plugin } from "obsidian";
-import { DEFAULT_SETTINGS, Settings } from "../settings/types";
+import { DEFAULT_SETTINGS, ExcludedFolder, Settings } from "../settings/types";
 import { AttachmentRecord, PluginData } from "./types";
 
 const SCHEMA = 1;
 const SAVE_DEBOUNCE_MS = 500;
+
+/** Pre-v0.2 shape of the exclusion settings, replaced by `excludedFolders`. */
+interface LegacyExclusionFields {
+  excludedPaths?: string;
+  excludeSubpaths?: boolean;
+}
+
+/** One-time upgrade from the old single-textarea exclusion field to the new per-folder list. */
+function migrateExcludedFolders(raw: (Partial<Settings> & LegacyExclusionFields) | undefined): ExcludedFolder[] | null {
+  if (!raw || raw.excludedFolders || !raw.excludedPaths) return null;
+  const paths = raw.excludedPaths
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  if (paths.length === 0) return null;
+  return paths.map((path) => ({ path, includeSubpaths: !!raw.excludeSubpaths }));
+}
 
 /**
  * Owns the plugin's persisted state (data.json) plus two in-memory indices
@@ -21,9 +38,15 @@ export class Store {
 
   async load(): Promise<void> {
     const raw = (await this.plugin.loadData()) as Partial<PluginData> | null;
+    const rawSettings = raw?.settings as (Partial<Settings> & LegacyExclusionFields) | undefined;
+    const migratedExcludedFolders = migrateExcludedFolders(rawSettings);
     this.data = {
       schema: SCHEMA,
-      settings: { ...DEFAULT_SETTINGS, ...(raw?.settings ?? {}) },
+      settings: {
+        ...DEFAULT_SETTINGS,
+        ...(rawSettings ?? {}),
+        ...(migratedExcludedFolders ? { excludedFolders: migratedExcludedFolders } : {}),
+      },
       attachments: raw?.attachments ?? {},
     };
     this.rebuildIndices();

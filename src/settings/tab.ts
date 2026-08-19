@@ -1,7 +1,8 @@
-import { App, moment, PluginSettingTab, Setting } from "obsidian";
+import { App, moment, PluginSettingTab, Setting, TFolder } from "obsidian";
 import type AttachmentOrganizerPlugin from "../main";
 import { configureLogging } from "../log";
-import { ExtensionOverride, RootMode } from "./types";
+import { FolderSuggest } from "../ui/folderSuggest";
+import { ExcludedFolder, ExtensionOverride, RootMode } from "./types";
 
 const ROOT_MODE_LABELS: Record<RootMode, string> = {
   obsidian: "Wherever Obsidian puts it (core setting)",
@@ -25,6 +26,36 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
       this.plugin.store.scheduleSave();
       configureLogging({ debug: settings.debugLogging, notifications: !settings.disableNotifications });
     };
+
+    containerEl.createEl("h2", { text: "Exclusions" });
+
+    new Setting(containerEl)
+      .setName("Exclude extension pattern")
+      .setDesc("Regular expression. File extensions that match are left completely alone by this plugin (Obsidian's own default attachment handling still applies to them).")
+      .addText((text) =>
+        text
+          .setPlaceholder("pdf|docx?|xlsx?|pptx?|zip")
+          .setValue(settings.excludeExtensionPattern)
+          .onChange((v) => {
+            settings.excludeExtensionPattern = v;
+            save();
+          })
+      );
+
+    containerEl.createEl("h3", { text: "Excluded folders" });
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: 'Attachments already inside these folders are never touched. Start typing to pick from your existing folders, or type a path that doesn\'t exist yet (e.g. for a folder you plan to create). Same effect as right-clicking a folder → Attachment Steward → "Exclude this folder".',
+    });
+    this.renderExcludedFolders(containerEl, settings.excludedFolders, save);
+
+    new Setting(containerEl).addButton((btn) =>
+      btn.setButtonText("Add excluded folder").onClick(() => {
+        settings.excludedFolders.push({ path: "", includeSubpaths: true });
+        save();
+        this.display();
+      })
+    );
 
     containerEl.createEl("h2", { text: "Location" });
     containerEl.createEl("p", {
@@ -144,41 +175,6 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
         })
       );
 
-    containerEl.createEl("h2", { text: "Exclusions" });
-
-    new Setting(containerEl)
-      .setName("Exclude extension pattern")
-      .setDesc("Regular expression. File extensions that match are left completely alone by this plugin (Obsidian's own default attachment handling still applies to them).")
-      .addText((text) =>
-        text
-          .setPlaceholder("pdf|docx?|xlsx?|pptx?|zip")
-          .setValue(settings.excludeExtensionPattern)
-          .onChange((v) => {
-            settings.excludeExtensionPattern = v;
-            save();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Excluded paths")
-      .setDesc("Folder paths relative to the vault root (no leading '/'), separated by ';'. Attachments already inside these folders are never touched.")
-      .addTextArea((text) =>
-        text.setValue(settings.excludedPaths).onChange((v) => {
-          settings.excludedPaths = v;
-          save();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName("Exclude subpaths")
-      .setDesc("Also apply the exclusion to every subfolder inside the paths above, not just the folder itself.")
-      .addToggle((t) =>
-        t.setValue(settings.excludeSubpaths).onChange((v) => {
-          settings.excludeSubpaths = v;
-          save();
-        })
-      );
-
     containerEl.createEl("h2", { text: "Extension overrides" });
     containerEl.createEl("p", {
       cls: "setting-item-description",
@@ -219,6 +215,49 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
       .addButton((btn) => btn.setButtonText("Run").onClick(() => this.plugin.adoptVault()));
 
     new Setting(containerEl).setName("Prune orphaned records").addButton((btn) => btn.setButtonText("Run").onClick(() => this.plugin.prune()));
+  }
+
+  private renderExcludedFolders(containerEl: HTMLElement, excludedFolders: ExcludedFolder[], save: () => void): void {
+    excludedFolders.forEach((entry, index) => {
+      const row = containerEl.createDiv({ cls: "ao-excluded-folder-row" });
+      const exists = entry.path === "" || this.app.vault.getAbstractFileByPath(entry.path) instanceof TFolder;
+      if (!exists) row.addClass("ao-excluded-folder-missing");
+
+      const setting = new Setting(row).setName("");
+      setting.addText((text) => {
+        text.setPlaceholder("e.g. Attachments, or Exports/Telegram").setValue(entry.path);
+        text.onChange((v) => {
+          entry.path = v;
+          save();
+        });
+        new FolderSuggest(this.app, text.inputEl, (folder) => {
+          entry.path = folder.path;
+          text.setValue(folder.path);
+          save();
+          this.display();
+        });
+      });
+      if (!exists) {
+        setting.controlEl.createSpan({ cls: "ao-excluded-folder-warning", text: "⚠ folder not found" });
+      }
+      setting.controlEl.createSpan({ cls: "ao-excluded-folder-hint", text: "Include subfolders" });
+      setting.addToggle((t) =>
+        t.setValue(entry.includeSubpaths).onChange((v) => {
+          entry.includeSubpaths = v;
+          save();
+        })
+      );
+      setting.addExtraButton((btn) =>
+        btn
+          .setIcon("trash")
+          .setTooltip("Remove")
+          .onClick(() => {
+            excludedFolders.splice(index, 1);
+            save();
+            this.display();
+          })
+      );
+    });
   }
 
   private renderExtensionOverrides(containerEl: HTMLElement, overrides: ExtensionOverride[], save: () => void): void {

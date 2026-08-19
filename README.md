@@ -37,10 +37,20 @@ Not yet in the official Community Plugins directory. Install via [BRAT](https://
 - **Adopt unmanaged attachments in active note / in whole vault** — for attachments that exist and are linked but were never organized (e.g. from before you installed the plugin, or ones a previous plugin left untouched), registers them and offers to move them into place.
 - **Prune orphaned attachment records** — manual cleanup of tracking records for files that no longer exist (this also happens automatically on delete).
 
+### Folder context menu
+
+Right-click any folder in the file explorer for an **Attachment Steward** entry with a submenu of folder-scoped versions of the above, applied recursively to that folder and its subfolders:
+
+- **Adopt unmanaged attachments**
+- **Reapply rules**
+- **Prune orphaned records**
+- **Find attachments with no links** — a diagnostic, report-only scan: lists every file under the folder that no note or canvas anywhere in the vault links to or embeds. This is different from "unmanaged" — a file can be unmanaged but still referenced (Adopt catches those); this command finds the ones with *no reference at all*, e.g. leftovers from a bulk import (Apple Notes, Evernote, …) where a link never parsed correctly and the file was simply left behind in the export folder.
+- **Exclude this folder / Remove this folder from Exclusions** — toggles the folder in and out of the *Excluded folders* list below (recursively), for a folder this plugin should never touch at all — e.g. a raw export dump you don't want reorganized.
+
 ### Exclusions
 
 - **Exclude extension pattern** — a regular expression; matching extensions are left alone entirely.
-- **Excluded paths** (+ *exclude subpaths*) — folders this plugin never touches.
+- **Excluded folders** — a list of folders this plugin never touches, each with its own *include subfolders* toggle. Add one from the settings tab (with folder-name autocomplete as you type) or via the folder context menu above. Entries follow the folder if you rename or move it; an entry flagged "folder not found" points at a folder that no longer exists and can be deleted with its trash icon.
 - **Extension overrides** — a different folder/filename template for specific extensions.
 
 ## Development

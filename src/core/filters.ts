@@ -1,4 +1,4 @@
-import { ExtensionOverride, Settings } from "../settings/types";
+import { ExcludedFolder, ExtensionOverride, Settings } from "../settings/types";
 
 /** Never manage notes/canvases themselves — only their attachments. */
 export const MANAGED_BLOCKLIST_EXTENSIONS = new Set(["md", "canvas"]);
@@ -16,22 +16,10 @@ export function isExcludedByExtension(extension: string, pattern: string): boole
   }
 }
 
-function parseExcludedPaths(excludedPaths: string): string[] {
-  return excludedPaths
-    .split(";")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-}
-
-export function isExcludedByPath(parentFolderPath: string, settings: Pick<Settings, "excludedPaths" | "excludeSubpaths">): boolean {
-  const folders = parseExcludedPaths(settings.excludedPaths);
-  if (folders.length === 0) return false;
-  for (const folder of folders) {
-    if (settings.excludeSubpaths) {
-      if (parentFolderPath === folder || parentFolderPath.startsWith(folder + "/")) return true;
-    } else if (parentFolderPath === folder) {
-      return true;
-    }
+export function isExcludedByPath(parentFolderPath: string, excludedFolders: ExcludedFolder[]): boolean {
+  for (const folder of excludedFolders) {
+    if (parentFolderPath === folder.path) return true;
+    if (folder.includeSubpaths && parentFolderPath.startsWith(folder.path + "/")) return true;
   }
   return false;
 }
@@ -57,6 +45,6 @@ export function effectiveTemplates(extension: string, settings: Settings): Effec
 export function shouldManage(extension: string, parentFolderPath: string, settings: Settings): boolean {
   if (MANAGED_BLOCKLIST_EXTENSIONS.has(extension.toLowerCase())) return false;
   if (isExcludedByExtension(extension, settings.excludeExtensionPattern)) return false;
-  if (isExcludedByPath(parentFolderPath, settings)) return false;
+  if (isExcludedByPath(parentFolderPath, settings.excludedFolders)) return false;
   return true;
 }
