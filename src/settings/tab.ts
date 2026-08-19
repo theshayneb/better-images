@@ -280,7 +280,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
         )
         .addText((text) =>
           text
-            .setPlaceholder("path template")
+            .setPlaceholder("Path template")
             .setValue(override.pathTemplate)
             .onChange((v) => {
               override.pathTemplate = v;
@@ -289,7 +289,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
         )
         .addText((text) =>
           text
-            .setPlaceholder("format template")
+            .setPlaceholder("Format template")
             .setValue(override.formatTemplate)
             .onChange((v) => {
               override.formatTemplate = v;
