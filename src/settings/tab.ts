@@ -159,6 +159,18 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Scan frontmatter properties for attachment links")
+      .setDesc(
+        'Also treat file links written as [[wikilink]] inside frontmatter properties as attachments belonging to the note (not just links in the note body). A plain-string path property (without [[double brackets]]) still can\'t be detected either way.'
+      )
+      .addToggle((t) =>
+        t.setValue(settings.scanFrontmatterLinks).onChange((v) => {
+          settings.scanFrontmatterLinks = v;
+          save();
+        })
+      );
+
+    new Setting(containerEl)
       .setName("Disable notifications")
       .setDesc('Hide the small popup shown after attachments are organized (e.g. "Organized 3 attachments"). Errors are still printed to the developer console either way.')
       .addToggle((t) =>
@@ -204,21 +216,32 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Reapply rules to all managed attachments")
+      .setDesc(
+        "Recomputes the destination of every attachment already tracked by this plugin, from its frozen original name. Doesn't discover new attachments or assign owners - use Adopt below for that."
+      )
       .addButton((btn) => btn.setButtonText("Run").onClick(() => this.plugin.reapplyAll()));
 
     new Setting(containerEl)
       .setName("Reapply rules to active note's attachments")
+      .setDesc("Same as above, limited to attachments already owned by the currently open note.")
       .addButton((btn) => btn.setButtonText("Run").onClick(() => this.plugin.reapplyActiveNote()));
 
     new Setting(containerEl)
       .setName("Adopt unmanaged attachments in active note")
+      .setDesc(
+        "Scans links and embeds in the active note (plus frontmatter [[wikilinks]] if enabled above), finds attachments not yet tracked or not yet owned by any note, assigns them to this note, then reapplies rules to them."
+      )
       .addButton((btn) => btn.setButtonText("Run").onClick(() => this.plugin.adoptActiveNote()));
 
     new Setting(containerEl)
       .setName("Adopt unmanaged attachments in whole vault")
+      .setDesc("Same as above, across every note in the vault.")
       .addButton((btn) => btn.setButtonText("Run").onClick(() => this.plugin.adoptVault()));
 
-    new Setting(containerEl).setName("Prune orphaned records").addButton((btn) => btn.setButtonText("Run").onClick(() => this.plugin.prune()));
+    new Setting(containerEl)
+      .setName("Prune orphaned records")
+      .setDesc("Removes tracked records whose file no longer exists on disk (e.g. deleted while Obsidian wasn't running). Doesn't touch records for files that still exist.")
+      .addButton((btn) => btn.setButtonText("Run").onClick(() => this.plugin.prune()));
   }
 
   private renderExcludedFolders(containerEl: HTMLElement, excludedFolders: ExcludedFolder[], save: () => void): void {

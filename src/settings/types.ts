@@ -25,6 +25,7 @@ export interface Settings {
   disableNotifications: boolean;
   debugLogging: boolean;
   claimGraceMs: number;
+  scanFrontmatterLinks: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -41,4 +42,5 @@ export const DEFAULT_SETTINGS: Settings = {
   disableNotifications: false,
   debugLogging: false,
   claimGraceMs: 2500,
+  scanFrontmatterLinks: false,
 };

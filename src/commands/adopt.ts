@@ -7,13 +7,18 @@ import { Store } from "../store/store";
 import { AttachmentRecord } from "../store/types";
 import { reapplyRules } from "./reapply";
 
-function collectUnmanaged(app: App, store: Store, notes: TFile[]): Map<string, string> {
+/**
+ * Referenced attachments with no owning note yet - either never tracked at
+ * all, or tracked (e.g. auto-claimed on creation, then left orphaned when no
+ * note referenced it in time) but with `notePath` still null.
+ */
+function collectAdoptable(app: App, store: Store, notes: TFile[]): Map<string, string> {
   const found = new Map<string, string>(); // attachPath -> notePath (first reference wins)
   for (const note of notes) {
     const cache = app.metadataCache.getFileCache(note);
     if (!cache) continue;
-    for (const attachPath of referencedAttachments(app, note, cache)) {
-      if (store.has(attachPath)) continue;
+    for (const attachPath of referencedAttachments(app, note, cache, store.settings)) {
+      if (store.get(attachPath)?.notePath) continue;
       if (!found.has(attachPath)) found.set(attachPath, note.path);
     }
   }
@@ -21,20 +26,26 @@ function collectUnmanaged(app: App, store: Store, notes: TFile[]): Map<string, s
 }
 
 /**
- * Registers a record for every referenced-but-untracked attachment (its
- * `originalName` is its current basename, since it has never been touched
- * by any rule yet), then hands off to reapplyRules for the actual
- * preview/move — this is how pre-existing damage like the 40 untouched
- * Bürgergeld PDFs gets fixed, on explicit request rather than automatically.
+ * Assigns the owning note to every referenced-but-ownerless attachment -
+ * registering a fresh record (its `originalName` is its current basename,
+ * since it has never been touched by any rule yet) for ones never tracked
+ * before, or just claiming the existing record for ones already tracked but
+ * orphaned - then hands off to reapplyRules for the actual preview/move.
+ * This is how pre-existing damage like the 40 untouched Bürgergeld PDFs gets
+ * fixed, on explicit request rather than automatically.
  */
 async function adopt(app: App, store: Store, notes: TFile[], internalMoves: InternalMoveTracker, titleText: string): Promise<void> {
-  const unmanaged = collectUnmanaged(app, store, notes);
-  if (unmanaged.size === 0) {
+  const adoptable = collectAdoptable(app, store, notes);
+  if (adoptable.size === 0) {
     log.notice("No unmanaged attachments found.");
     return;
   }
 
-  for (const [attachPath, notePath] of unmanaged) {
+  for (const [attachPath, notePath] of adoptable) {
+    if (store.has(attachPath)) {
+      store.setNotePath(attachPath, notePath);
+      continue;
+    }
     const file = app.vault.getAbstractFileByPath(attachPath);
     if (!(file instanceof TFile)) continue;
     const record: AttachmentRecord = {
@@ -53,7 +64,7 @@ async function adopt(app: App, store: Store, notes: TFile[], internalMoves: Inte
     store.set(attachPath, record);
   }
 
-  await reapplyRules(app, store, [...unmanaged.keys()], internalMoves, titleText);
+  await reapplyRules(app, store, [...adoptable.keys()], internalMoves, titleText);
 }
 
 export function adoptActiveNoteCommand(app: App, store: Store, internalMoves: InternalMoveTracker): () => Promise<void> {

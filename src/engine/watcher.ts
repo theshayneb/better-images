@@ -66,13 +66,22 @@ export class Watcher {
   };
 
   private onMetadataChanged = (note: TFile, _data: string, cache: CachedMetadata): void => {
-    if (note.extension !== "md" || this.pending.size === 0) return;
-    for (const attachPath of referencedAttachments(this.app, note, cache)) {
-      if (this.pending.has(attachPath)) {
+    if (note.extension !== "md") return;
+    for (const attachPath of referencedAttachments(this.app, note, cache, this.store.settings)) {
+      if (this.pending.has(attachPath) || this.isOwnerlessOrphan(attachPath)) {
         this.claim(attachPath, note.path);
       }
     }
   };
+
+  // A file this Watcher already tracks (so `onCreate` isn't going to see it
+  // again) but never found an owner for in time — e.g. it sat unlinked in
+  // the vault and only got referenced by a note well after `claimGraceMs`
+  // expired. Re-checked on every metadata change so linking it later still
+  // gets it organized, not just a fresh explicit "adopt" run.
+  private isOwnerlessOrphan(attachPath: string): boolean {
+    return this.store.get(attachPath)?.notePath === null;
+  }
 
   private onRename = (file: TAbstractFile, oldPath: string): void => {
     if (this.internalMoves.has(oldPath) || this.internalMoves.has(file.path)) {
@@ -109,9 +118,10 @@ export class Watcher {
   }
 
   private claim(attachPath: string, notePath: string): void {
-    if (!this.pending.has(attachPath)) return;
-    this.pending.delete(attachPath);
-    this.clearSettle(attachPath);
+    if (this.pending.has(attachPath)) {
+      this.pending.delete(attachPath);
+      this.clearSettle(attachPath);
+    }
     this.claims.set(attachPath, notePath);
     this.toProcess.add(attachPath);
     this.scheduleProcess();
@@ -126,7 +136,10 @@ export class Watcher {
         this.claim(attachPath, owner);
       } else {
         // Legitimate orphan: no note references it (yet). Leave it managed
-        // but unprocessed — the "adopt" commands handle these explicitly.
+        // but unprocessed — `onMetadataChanged` claims it the moment some
+        // note's links change to reference it, and the "adopt" commands
+        // handle the case where that never happens (e.g. a bulk import with
+        // no further edits to any note).
         this.pending.delete(attachPath);
         log.debug(`no owner found for ${attachPath}, leaving unprocessed`);
       }

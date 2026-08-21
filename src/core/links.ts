@@ -1,13 +1,18 @@
 import { App, CachedMetadata, TFile } from "obsidian";
+import { Settings } from "../settings/types";
 
 /**
  * Non-markdown files a note currently links/embeds, resolved via the
  * metadata cache so path-less markdown-style links (e.g. `[x](UUID.pdf)`,
  * common in Apple Notes exports) resolve correctly, not just wikilinks.
+ * When `settings.scanFrontmatterLinks` is on, also picks up frontmatter
+ * properties written as `[[wikilink]]` - a plain string path in a property
+ * isn't parsed as a link by Obsidian at all, so those stay invisible to us
+ * either way.
  */
-export function referencedAttachments(app: App, note: TFile, cache: CachedMetadata): Set<string> {
+export function referencedAttachments(app: App, note: TFile, cache: CachedMetadata, settings: Settings): Set<string> {
   const out = new Set<string>();
-  const refs = [...(cache.embeds ?? []), ...(cache.links ?? [])];
+  const refs = [...(cache.embeds ?? []), ...(cache.links ?? []), ...(settings.scanFrontmatterLinks ? cache.frontmatterLinks ?? [] : [])];
   for (const ref of refs) {
     let link = ref.link.split("#")[0].split("|")[0];
     if (!link || /^[a-z]+:\/\//i.test(link)) continue;
