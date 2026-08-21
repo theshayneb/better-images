@@ -227,7 +227,12 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
       const exists = entry.path === "" || this.app.vault.getAbstractFileByPath(entry.path) instanceof TFolder;
       if (!exists) row.addClass("ao-excluded-folder-missing");
 
-      const setting = new Setting(row).setName("");
+      const setting = new Setting(row);
+      // No name/desc here — drop the (empty) info column entirely, otherwise
+      // Setting still reserves it half the row's width and shoves this
+      // fully-custom control off into the right half.
+      setting.infoEl.remove();
+      setting.controlEl.addClass("ao-excluded-folder-control");
       setting.addText((text) => {
         text.setPlaceholder("e.g. Attachments, or Exports/Telegram").setValue(entry.path);
         text.onChange((v) => {
@@ -241,17 +246,25 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           this.display();
         });
       });
+
+      // Toggle + trash always render into controlEl by default — pull their
+      // elements into this dedicated row so the layout is one deliberate
+      // two-line design at every width, not a reflow that depends on how much
+      // room happens to be available.
+      const metaRow = setting.controlEl.createDiv({ cls: "ao-excluded-folder-meta" });
+      const toggleGroup = metaRow.createDiv({ cls: "ao-excluded-folder-toggle-group" });
       if (!exists) {
-        setting.controlEl.createSpan({ cls: "ao-excluded-folder-warning", text: "⚠ folder not found" });
+        toggleGroup.createSpan({ cls: "ao-excluded-folder-warning", text: "⚠ folder not found" });
       }
-      setting.controlEl.createSpan({ cls: "ao-excluded-folder-hint", text: "Include subfolders" });
-      setting.addToggle((t) =>
+      toggleGroup.createSpan({ cls: "ao-excluded-folder-hint", text: "Include subfolders" });
+      setting.addToggle((t) => {
         t.setValue(entry.includeSubpaths).onChange((v) => {
           entry.includeSubpaths = v;
           save();
-        })
-      );
-      setting.addExtraButton((btn) =>
+        });
+        toggleGroup.appendChild(t.toggleEl);
+      });
+      setting.addExtraButton((btn) => {
         btn
           .setIcon("trash")
           .setTooltip("Remove")
@@ -259,16 +272,19 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
             excludedFolders.splice(index, 1);
             save();
             this.display();
-          })
-      );
+          });
+        metaRow.appendChild(btn.extraSettingsEl);
+      });
     });
   }
 
   private renderExtensionOverrides(containerEl: HTMLElement, overrides: ExtensionOverride[], save: () => void): void {
     overrides.forEach((override, index) => {
       const row = containerEl.createDiv({ cls: "ao-extension-override-row" });
-      new Setting(row)
-        .setName("")
+      const setting = new Setting(row);
+      setting.infoEl.remove();
+      setting.controlEl.addClass("ao-extension-override-control");
+      setting
         .addText((text) =>
           text
             .setPlaceholder("pdf")
@@ -295,17 +311,20 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
               override.formatTemplate = v;
               save();
             })
-        )
-        .addExtraButton((btn) =>
-          btn
-            .setIcon("trash")
-            .setTooltip("Remove")
-            .onClick(() => {
-              overrides.splice(index, 1);
-              save();
-              this.display();
-            })
         );
+
+      const metaRow = setting.controlEl.createDiv({ cls: "ao-extension-override-meta" });
+      setting.addExtraButton((btn) => {
+        btn
+          .setIcon("trash")
+          .setTooltip("Remove")
+          .onClick(() => {
+            overrides.splice(index, 1);
+            save();
+            this.display();
+          });
+        metaRow.appendChild(btn.extraSettingsEl);
+      });
     });
   }
 }

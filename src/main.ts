@@ -1,4 +1,4 @@
-import { Plugin, TFolder } from "obsidian";
+import { Platform, Plugin, TFolder } from "obsidian";
 import { adoptActiveNoteCommand, adoptFolderCommand, adoptVaultCommand } from "./commands/adopt";
 import { findOrphansCommand } from "./commands/findOrphans";
 import { pruneCommand, pruneFolderCommand } from "./commands/prune";
@@ -98,53 +98,68 @@ export default class AttachmentOrganizerPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
         if (!(file instanceof TFolder)) return;
+        const excluded = isFolderListed(this.store.settings.excludedFolders, file.path);
+        const items = [
+          {
+            title: "Adopt unmanaged attachments",
+            icon: "file-plus",
+            onClick: () => this.commands.adoptFolder(file),
+          },
+          {
+            title: "Reapply rules",
+            icon: "refresh-cw",
+            onClick: () => this.commands.reapplyFolder(file),
+          },
+          {
+            title: "Prune orphaned records",
+            icon: "trash-2",
+            onClick: () => this.commands.pruneFolder(file),
+          },
+          {
+            title: "Find attachments with no links",
+            icon: "search",
+            onClick: () => this.commands.findOrphansFolder(file),
+          },
+        ];
+        const exclusionItem = {
+          title: excluded ? "Remove this folder from Exclusions" : "Exclude this folder",
+          icon: excluded ? "eye" : "eye-off",
+          onClick: () => {
+            if (excluded) {
+              removeExcludedFolder(this.store.settings, file.path);
+              log.notice(`Removed "${file.path}" from Exclusions.`);
+            } else {
+              addExcludedFolder(this.store.settings, file.path);
+              log.notice(`Excluded "${file.path}" from Attachment Steward.`);
+            }
+            this.store.scheduleSave();
+            this.refreshSettingsTab();
+          },
+        };
+
         menu.addSeparator();
-        menu.addItem((item) => {
-          item.setTitle("Attachment Steward").setIcon("paperclip");
-          const submenu = item.setSubmenu();
-          submenu.addItem((si) =>
-            si
-              .setTitle("Adopt unmanaged attachments")
-              .setIcon("file-plus")
-              .onClick(() => this.commands.adoptFolder(file))
-          );
-          submenu.addItem((si) =>
-            si
-              .setTitle("Reapply rules")
-              .setIcon("refresh-cw")
-              .onClick(() => this.commands.reapplyFolder(file))
-          );
-          submenu.addItem((si) =>
-            si
-              .setTitle("Prune orphaned records")
-              .setIcon("trash-2")
-              .onClick(() => this.commands.pruneFolder(file))
-          );
-          submenu.addItem((si) =>
-            si
-              .setTitle("Find attachments with no links")
-              .setIcon("search")
-              .onClick(() => this.commands.findOrphansFolder(file))
-          );
-          submenu.addSeparator();
-          const excluded = isFolderListed(this.store.settings.excludedFolders, file.path);
-          submenu.addItem((si) =>
-            si
-              .setTitle(excluded ? "Remove this folder from Exclusions" : "Exclude this folder")
-              .setIcon(excluded ? "eye" : "eye-off")
-              .onClick(() => {
-                if (excluded) {
-                  removeExcludedFolder(this.store.settings, file.path);
-                  log.notice(`Removed "${file.path}" from Exclusions.`);
-                } else {
-                  addExcludedFolder(this.store.settings, file.path);
-                  log.notice(`Excluded "${file.path}" from Attachment Steward.`);
-                }
-                this.store.scheduleSave();
-                this.refreshSettingsTab();
-              })
-          );
-        });
+        if (Platform.isMobile) {
+          // A submenu (below) only opens on mobile via long-tap, an undiscoverable
+          // gesture — see https://forum.obsidian.md/t/87532. Flatten into the root
+          // menu instead, under a non-clickable label so the group still reads as one
+          // unit without repeating the plugin name on every line.
+          menu.addItem((mi) => mi.setTitle("Attachment Steward").setIcon("paperclip").setIsLabel(true));
+          for (const { title, icon, onClick } of [...items, exclusionItem]) {
+            menu.addItem((mi) => mi.setTitle(title).setIcon(icon).onClick(onClick));
+          }
+        } else {
+          menu.addItem((item) => {
+            item.setTitle("Attachment Steward").setIcon("paperclip");
+            const submenu = item.setSubmenu();
+            for (const { title, icon, onClick } of items) {
+              submenu.addItem((si) => si.setTitle(title).setIcon(icon).onClick(onClick));
+            }
+            submenu.addSeparator();
+            submenu.addItem((si) =>
+              si.setTitle(exclusionItem.title).setIcon(exclusionItem.icon).onClick(exclusionItem.onClick)
+            );
+          });
+        }
       })
     );
 
