@@ -195,7 +195,9 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Extension overrides")
       .setHeading()
-      .setDesc("Use a different folder/filename template for specific file extensions — e.g. keep PDFs in their own folder, separate from images.");
+      .setDesc(
+        "Use a different folder/filename template for specific file extensions - e.g. keep PDFs in their own folder, separate from images. The extension field is a regular expression (case-insensitive), so e.g. \"jpe?g|png|gif|webp\" matches several extensions in one row."
+      );
     this.renderExtensionOverrides(containerEl, settings.extensionOverrides, save);
 
     new Setting(containerEl).addButton((btn) =>
@@ -310,7 +312,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
       setting
         .addText((text) =>
           text
-            .setPlaceholder("pdf")
+            .setPlaceholder("jpe?g|png")
             .setValue(override.extension)
             .onChange((v) => {
               override.extension = v;
