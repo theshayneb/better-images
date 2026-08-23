@@ -45,7 +45,7 @@ export async function processAttachment(app: App, store: Store, file: TFile, not
   }
 
   if (await ensureRecordHash(app, file, record, store.settings)) {
-    store.scheduleSave();
+    store.touch(file.path);
   }
 
   const result = await resolveDestination(app, file, record, note, store.settings);

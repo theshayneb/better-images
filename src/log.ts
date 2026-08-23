@@ -1,6 +1,6 @@
 import { Notice } from "obsidian";
 
-const PREFIX = "[attachment-organizer]";
+const PREFIX = "[attachment-steward]";
 
 let debugEnabled = false;
 let notificationsEnabled = true;

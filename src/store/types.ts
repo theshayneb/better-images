@@ -29,9 +29,22 @@ export interface AttachmentRecord {
   source: AttachmentSource;
 }
 
+/** In-memory shape: every record, from every shard, merged into one map. */
 export interface PluginData {
-  schema: 1;
+  schema: number;
   settings: Settings;
   /** Keyed by current vault path. Rekeyed on every move. */
+  attachments: Record<string, AttachmentRecord>;
+}
+
+/**
+ * On-disk shape of one sharded record file — either the records owned by a
+ * single note (`notePath` set) or the shared bucket for unclaimed ones
+ * (`notePath: null`). Written under the plugin's own data folder, never in
+ * the vault proper, so it's invisible to `Vault` events and to the user.
+ */
+export interface AttachmentShard {
+  schema: 1;
+  notePath: string | null;
   attachments: Record<string, AttachmentRecord>;
 }

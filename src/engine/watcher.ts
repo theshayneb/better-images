@@ -1,7 +1,8 @@
 import { App, CachedMetadata, EventRef, TAbstractFile, TFile } from "obsidian";
-import { shouldManage } from "../core/filters";
+import { effectiveTemplates, shouldManage } from "../core/filters";
 import { referencedAttachments } from "../core/links";
 import { parentPath } from "../core/paths";
+import { recognizeAppliedName } from "../core/recognize";
 import { log } from "../log";
 import { Store } from "../store/store";
 import { AttachmentRecord } from "../store/types";
@@ -9,6 +10,15 @@ import { handleNoteRename } from "./noteRename";
 import { cleanupIfEmpty, InternalMoveTracker, processAttachment } from "./organizer";
 
 const PROCESS_DEBOUNCE_MS = 200;
+
+/**
+ * How long a tracked attachment's record survives after its file disappears,
+ * before being treated as a real deletion. Covers two cases that surface as
+ * delete+create instead of a clean rename: another plugin replacing the file
+ * in place (e.g. format conversion changes the extension), and iCloud/mobile
+ * sync delivering a rename made on another device as two separate events.
+ */
+const DELETE_GRACE_MS = 3000;
 
 /**
  * Wires vault/metadata-cache events into the organize pipeline. Must be
@@ -20,6 +30,7 @@ export class Watcher {
   private readonly settleTimers = new Map<string, number>();
   private readonly claims = new Map<string, string>(); // attachPath -> notePath
   private readonly toProcess = new Set<string>();
+  private readonly pendingDeletes = new Map<string, number>(); // attachPath -> grace timer
   readonly internalMoves = new InternalMoveTracker();
   private processTimer: number | null = null;
 
@@ -37,33 +48,97 @@ export class Watcher {
     if (this.store.has(file.path)) return;
     if (!shouldManage(file.extension, file.parent?.path ?? "", this.store.settings)) return;
 
+    if (this.claimReplacement(file)) return;
+
+    // No local record and no matching tombstone — but this device may
+    // simply never have witnessed this file's true first sighting (sync
+    // can deliver an already-renamed file before the record explaining it,
+    // or before any record at all — see the note-per-device race). Check
+    // whether the name already looks like our own output before trusting
+    // it as fresh, so we recover the true original instead of stamping a
+    // new date on top of one that's already there.
+    const { formatTemplate } = effectiveTemplates(file.extension, this.store.settings);
+    const recognized = recognizeAppliedName(file.basename, formatTemplate, this.store.settings.dateFormat);
+    if (recognized) {
+      log.debug(`${file.path} already looks applied, recovered original name "${recognized.originalName}"`);
+    }
+
     // Capture the true original name at the very first sighting, before any
     // move can occur — this is what makes reapplying rules idempotent later.
     const record: AttachmentRecord = {
       v: 1,
-      originalName: file.basename,
+      originalName: recognized?.originalName ?? file.basename,
       extension: file.extension,
-      importedAt: Date.now(),
+      importedAt: recognized?.importedAt ?? Date.now(),
       notePath: null,
       md5: null,
       md5For: null,
       dedupe: 0,
       applied: null,
       managed: true,
-      source: "created",
+      source: recognized ? "adopted" : "created",
     };
     this.store.set(file.path, record);
-    this.pending.set(file.path, Date.now());
+    this.trackForOwnership(file.path, null);
+  };
 
+  /**
+   * A file just appeared where a tracked attachment was, moments ago,
+   * deleted from the same folder — most likely the same logical attachment,
+   * replaced in place rather than cleanly renamed (a conversion plugin
+   * rewriting it under a new extension, or another device's rename arriving
+   * over iCloud as separate delete+create events). Carries the frozen
+   * identity (originalName/importedAt/notePath) over to the new path instead
+   * of starting a fresh record, which is what keeps the eventual filename
+   * from growing a new date prefix on every such replace.
+   */
+  private claimReplacement(file: TFile): boolean {
+    const parent = file.parent?.path ?? "";
+    for (const oldPath of this.pendingDeletes.keys()) {
+      if (parentPath(oldPath) !== parent) continue;
+      const record = this.store.get(oldPath);
+      if (!record) continue;
+
+      this.cancelPendingDelete(oldPath);
+      this.store.rekey(oldPath, file.path);
+      // Content very likely changed (that's usually why the replace
+      // happened at all) — drop the stale hash so it's recomputed on demand.
+      record.extension = file.extension;
+      record.md5 = null;
+      record.md5For = null;
+      this.store.scheduleSave();
+
+      log.debug(`treating ${file.path} as a replacement of ${oldPath}, not a new attachment`);
+      this.trackForOwnership(file.path, record.notePath);
+      return true;
+    }
+    return false;
+  }
+
+  /** Shared tail of onCreate/claimReplacement: hand the path to a known owner, or go find one. */
+  private trackForOwnership(attachPath: string, knownNotePath: string | null): void {
+    if (knownNotePath) {
+      this.claim(attachPath, knownNotePath);
+      return;
+    }
+    this.pending.set(attachPath, Date.now());
     // The owning note may already exist and reference this attachment (note
     // created first, e.g. an Apple Notes export with links already inline).
-    const owner = this.findOwner(file.path);
+    const owner = this.findOwner(attachPath);
     if (owner) {
-      this.claim(file.path, owner);
+      this.claim(attachPath, owner);
     } else {
-      this.scheduleSettle(file.path);
+      this.scheduleSettle(attachPath);
     }
-  };
+  }
+
+  private cancelPendingDelete(path: string): void {
+    const timer = this.pendingDeletes.get(path);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      this.pendingDeletes.delete(path);
+    }
+  }
 
   private onMetadataChanged = (note: TFile, _data: string, cache: CachedMetadata): void => {
     if (note.extension !== "md") return;
@@ -102,11 +177,19 @@ export class Watcher {
 
   private onDelete = (file: TAbstractFile): void => {
     if (!(file instanceof TFile) || !this.store.has(file.path)) return;
-    const parent = parentPath(file.path);
-    this.store.delete(file.path);
-    if (this.store.settings.cleanEmptyFolders) {
-      void cleanupIfEmpty(this.app, parent);
-    }
+    const path = file.path;
+    // Don't drop the record immediately: a matching `create` in the same
+    // folder within the grace window means this was a replace, not a real
+    // deletion (see claimReplacement). Only finalize if nothing claims it.
+    const timer = window.setTimeout(() => {
+      this.pendingDeletes.delete(path);
+      const parent = parentPath(path);
+      this.store.delete(path);
+      if (this.store.settings.cleanEmptyFolders) {
+        void cleanupIfEmpty(this.app, parent);
+      }
+    }, DELETE_GRACE_MS);
+    this.pendingDeletes.set(path, timer);
   };
 
   private findOwner(attachPath: string): string | null {

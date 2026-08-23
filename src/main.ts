@@ -3,6 +3,7 @@ import { adoptActiveNoteCommand, adoptFolderCommand, adoptVaultCommand } from ".
 import { findOrphansCommand } from "./commands/findOrphans";
 import { pruneCommand, pruneFolderCommand } from "./commands/prune";
 import { reapplyActiveNoteCommand, reapplyAllCommand, reapplyFolderCommand } from "./commands/reapply";
+import { repairStampedNamesCommand } from "./commands/repair";
 import { addExcludedFolder, isFolderListed, removeExcludedFolder, renameExcludedFolders } from "./core/exclusions";
 import { Watcher } from "./engine/watcher";
 import { configureLogging, log } from "./log";
@@ -19,6 +20,7 @@ interface Commands {
   prune: () => void;
   pruneFolder: (folder: TFolder) => void;
   findOrphansFolder: (folder: TFolder) => void;
+  repairStampedNames: () => Promise<void>;
 }
 
 export default class AttachmentOrganizerPlugin extends Plugin {
@@ -52,6 +54,7 @@ export default class AttachmentOrganizerPlugin extends Plugin {
       prune: pruneCommand(this.app, this.store),
       pruneFolder: pruneFolderCommand(this.app, this.store),
       findOrphansFolder: findOrphansCommand(this.app),
+      repairStampedNames: repairStampedNamesCommand(this.app, this.store, this.watcher.internalMoves),
     };
 
     this.addCommand({
@@ -78,6 +81,11 @@ export default class AttachmentOrganizerPlugin extends Plugin {
       id: "prune-orphaned-records",
       name: "Prune orphaned attachment records",
       callback: this.commands.prune,
+    });
+    this.addCommand({
+      id: "repair-stamped-names",
+      name: "Repair attachment names stamped by a past sync bug",
+      callback: this.commands.repairStampedNames,
     });
 
     this.registerEvent(

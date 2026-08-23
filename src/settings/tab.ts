@@ -183,7 +183,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Debug logging")
       .setDesc(
-        "Print detailed step-by-step logs to the developer console, prefixed [attachment-organizer]. Open the console with Cmd+Option+I (Mac) or Ctrl+Shift+I (Windows/Linux). Leave off for everyday use — it's noisy."
+        "Print detailed step-by-step logs to the developer console, prefixed [attachment-steward]. Open the console with Cmd+Option+I (Mac) or Ctrl+Shift+I (Windows/Linux). Leave off for everyday use - it's noisy."
       )
       .addToggle((t) =>
         t.setValue(settings.debugLogging).onChange((v) => {

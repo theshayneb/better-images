@@ -14,6 +14,15 @@ export function formatDate(timestamp: number | undefined, format: string): strin
   return momentFn(timestamp).format(format);
 }
 
+type MomentParseFn = (input: string, format: string, strict: boolean) => { isValid(): boolean; valueOf(): number };
+const momentParseFn = moment as unknown as MomentParseFn;
+
+/** Inverse of `formatDate`: recovers the epoch ms a rendered date string came from, or null if it doesn't match `format` at all. */
+export function parseDate(text: string, format: string): number | null {
+  const parsed = momentParseFn(text, format, true);
+  return parsed.isValid() ? parsed.valueOf() : null;
+}
+
 /**
  * Deliberately contains NO field referencing the attachment's current
  * filename. Every value here comes from the frozen AttachmentRecord (or the
