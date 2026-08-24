@@ -1,5 +1,9 @@
 export type RootMode = "obsidian" | "vaultRoot" | "inFolderBelowRoot" | "nextToNote";
 
+/** File types Obsidian itself owns (notes, canvases, bases) - never real attachments, so this plugin never manages them. */
+export const CORE_EXTENSIONS = ["md", "canvas", "base"] as const;
+export type CoreExtension = (typeof CORE_EXTENSIONS)[number];
+
 export interface ExtensionOverride {
   extension: string;
   pathTemplate: string;
@@ -18,6 +22,7 @@ export interface Settings {
   formatTemplate: string;
   dateFormat: string;
   excludeExtensionPattern: string;
+  excludedCoreExtensions: Record<CoreExtension, boolean>;
   excludedFolders: ExcludedFolder[];
   extensionOverrides: ExtensionOverride[];
   autoRenameOnNoteRename: boolean;
@@ -35,6 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   formatTemplate: "${date}-${originalname}",
   dateFormat: "YYYY-MM-DD-HH_mm_ss_SSS",
   excludeExtensionPattern: "",
+  excludedCoreExtensions: { md: true, canvas: true, base: true },
   excludedFolders: [],
   extensionOverrides: [],
   autoRenameOnNoteRename: true,

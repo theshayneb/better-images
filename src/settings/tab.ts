@@ -3,13 +3,19 @@ import type AttachmentOrganizerPlugin from "../main";
 import { configureLogging } from "../log";
 import { formatDate } from "../core/template";
 import { FolderSuggest } from "../ui/folderSuggest";
-import { ExcludedFolder, ExtensionOverride, RootMode } from "./types";
+import { CORE_EXTENSIONS, CoreExtension, ExcludedFolder, ExtensionOverride, RootMode } from "./types";
 
 const ROOT_MODE_LABELS: Record<RootMode, string> = {
   obsidian: "Wherever Obsidian puts it (core setting)",
   vaultRoot: "Vault root",
   inFolderBelowRoot: "Fixed folder",
   nextToNote: "Next to note, in folder specified below",
+};
+
+const CORE_EXTENSION_DESCRIPTIONS: Record<CoreExtension, string> = {
+  md: "Notes. Turning this off would let the plugin move and rename your notes themselves as if they were attachments.",
+  canvas: "Canvas files.",
+  base: 'Base files. A note embedding a base, e.g. "![[My data.base#View]]", would otherwise get its base moved and renamed like a regular attachment.',
 };
 
 export class AttachmentOrganizerSettingTab extends PluginSettingTab {
@@ -31,6 +37,18 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
     };
 
     new Setting(containerEl).setName("Exclusions").setHeading();
+
+    for (const extension of CORE_EXTENSIONS) {
+      new Setting(containerEl)
+        .setName(`Exclude .${extension} files`)
+        .setDesc(CORE_EXTENSION_DESCRIPTIONS[extension])
+        .addToggle((t) =>
+          t.setValue(settings.excludedCoreExtensions[extension]).onChange((v) => {
+            settings.excludedCoreExtensions[extension] = v;
+            save();
+          })
+        );
+    }
 
     new Setting(containerEl)
       .setName("Exclude extension pattern")

@@ -1,7 +1,10 @@
-import { ExcludedFolder, ExtensionOverride, Settings } from "../settings/types";
+import { CORE_EXTENSIONS, CoreExtension, ExcludedFolder, ExtensionOverride, Settings } from "../settings/types";
 
-/** Never manage notes/canvases themselves — only their attachments. */
-export const MANAGED_BLOCKLIST_EXTENSIONS = new Set(["md", "canvas"]);
+/** True while the given core extension's toggle in settings is on (the default) - i.e. this plugin should leave it alone. */
+export function isExcludedCoreExtension(extension: string, settings: Settings): boolean {
+  const ext = extension.toLowerCase();
+  return (CORE_EXTENSIONS as readonly string[]).includes(ext) && settings.excludedCoreExtensions[ext as CoreExtension] !== false;
+}
 
 /** Tests `extension` against a regex `pattern` (e.g. from settings UI). Used
  * both to exclude extensions and to match extension-override rows. */
@@ -44,7 +47,7 @@ export function effectiveTemplates(extension: string, settings: Settings): Effec
 }
 
 export function shouldManage(extension: string, parentFolderPath: string, settings: Settings): boolean {
-  if (MANAGED_BLOCKLIST_EXTENSIONS.has(extension.toLowerCase())) return false;
+  if (isExcludedCoreExtension(extension, settings)) return false;
   if (matchesExtensionPattern(extension, settings.excludeExtensionPattern)) return false;
   if (isExcludedByPath(parentFolderPath, settings.excludedFolders)) return false;
   return true;

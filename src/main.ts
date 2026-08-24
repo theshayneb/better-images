@@ -53,7 +53,7 @@ export default class AttachmentOrganizerPlugin extends Plugin {
       adoptFolder: adoptFolderCommand(this.app, this.store, this.watcher.internalMoves),
       prune: pruneCommand(this.app, this.store),
       pruneFolder: pruneFolderCommand(this.app, this.store),
-      findOrphansFolder: findOrphansCommand(this.app),
+      findOrphansFolder: findOrphansCommand(this.app, this.store.settings),
       repairStampedNames: repairStampedNamesCommand(this.app, this.store, this.watcher.internalMoves),
     };
 
