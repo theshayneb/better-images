@@ -264,7 +264,11 @@ export class Store {
 
     await this.plugin.saveData({ schema: SCHEMA, settings: this.data.settings });
     for (const notePath of dirty) {
-      await this.flushShard(notePath);
+      try {
+        await this.flushShard(notePath);
+      } catch (err) {
+        log.error(`failed to flush attachment shard for ${notePath ?? "(orphans)"}`, err);
+      }
     }
   }
 

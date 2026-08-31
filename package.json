@@ -1,6 +1,6 @@
 {
   "name": "attachment-steward",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Organizes attachments into templated folders and filenames - never loses the original filename, never breaks links elsewhere, and catches bulk imports the moment they land.",
   "main": "main.js",
   "private": true,

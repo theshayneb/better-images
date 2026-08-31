@@ -1,7 +1,15 @@
 import { App, normalizePath, Plugin } from "obsidian";
+import * as SparkMD5 from "spark-md5";
 
 export const RECORDS_DIR = "records";
 export const ORPHANS_FILE = "orphans.json";
+
+/**
+ * Headroom under the ~255-byte filename limit most filesystems enforce,
+ * after accounting for the "data_" prefix and ".json" suffix. `encodeURIComponent`
+ * output is pure ASCII, so its `.length` already equals its byte count.
+ */
+const MAX_ENCODED_KEY_LENGTH = 200;
 
 /** Vault-relative path to this plugin's own data folder (inside .obsidian/). */
 export function pluginDataDir(plugin: Plugin): string {
@@ -10,6 +18,22 @@ export function pluginDataDir(plugin: Plugin): string {
 
 function stripMdExtension(notePath: string): string {
   return notePath.endsWith(".md") ? notePath.slice(0, -3) : notePath;
+}
+
+/**
+ * Deriving the shard filename from `notePath` slashes and all (rather than
+ * just its basename) means a note rename needs no extra "rename the shard"
+ * step, but a deep, non-ASCII path can blow past the filesystem's filename
+ * length limit once percent-encoded (each Cyrillic character alone expands
+ * to 6 ASCII bytes) — `adapter.write` then fails with ENAMETOOLONG. Falling
+ * back to an MD5 of the full path keeps the name short regardless, at the
+ * cost of it no longer being human-readable; kept as a fallback rather than
+ * the default so existing shards for short/ASCII paths don't get orphaned.
+ */
+function shardKey(notePath: string): string {
+  const encoded = encodeURIComponent(notePath);
+  if (encoded.length <= MAX_ENCODED_KEY_LENGTH) return encoded;
+  return SparkMD5.hash(notePath);
 }
 
 /**
@@ -26,7 +50,7 @@ function stripMdExtension(notePath: string): string {
 export function shardPath(plugin: Plugin, notePath: string | null): string {
   const dir = pluginDataDir(plugin);
   if (notePath === null) return normalizePath(`${dir}/${RECORDS_DIR}/${ORPHANS_FILE}`);
-  const key = encodeURIComponent(stripMdExtension(notePath));
+  const key = shardKey(stripMdExtension(notePath));
   return normalizePath(`${dir}/${RECORDS_DIR}/data_${key}.json`);
 }
 
