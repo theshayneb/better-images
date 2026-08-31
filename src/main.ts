@@ -6,7 +6,7 @@ import { reapplyActiveNoteCommand, reapplyAllCommand, reapplyFolderCommand } fro
 import { repairStampedNamesCommand } from "./commands/repair";
 import { addExcludedFolder, isFolderListed, removeExcludedFolder, renameExcludedFolders } from "./core/exclusions";
 import { Watcher } from "./engine/watcher";
-import { configureLogging, log } from "./log";
+import { configureLogging, flushLog, log } from "./log";
 import { AttachmentOrganizerSettingTab } from "./settings/tab";
 import { Store } from "./store/store";
 
@@ -35,6 +35,8 @@ export default class AttachmentOrganizerPlugin extends Plugin {
     configureLogging({
       debug: this.store.settings.debugLogging,
       notifications: !this.store.settings.disableNotifications,
+      logToFile: this.store.settings.debugLogToFile,
+      plugin: this,
     });
 
     this.watcher = new Watcher(this.app, this.store);
@@ -177,9 +179,10 @@ export default class AttachmentOrganizerPlugin extends Plugin {
 
   onunload(): void {
     // Plugin.onunload isn't awaited by Obsidian, so this stays synchronous
-    // and fires the flush as a detached promise with its own error handling
-    // instead of silently returning one Obsidian will never wait on.
+    // and fires the flushes as detached promises with their own error
+    // handling instead of silently returning ones Obsidian will never wait on.
     void this.store.saveNow().catch((err) => log.error("failed to save on unload", err));
+    void flushLog().catch((err) => console.error("[attachment-steward] failed to flush debug log on unload", err));
   }
 
   /**

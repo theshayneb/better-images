@@ -29,6 +29,7 @@ export interface Settings {
   cleanEmptyFolders: boolean;
   disableNotifications: boolean;
   debugLogging: boolean;
+  debugLogToFile: boolean;
   claimGraceMs: number;
   scanFrontmatterLinks: boolean;
 }
@@ -47,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cleanEmptyFolders: true,
   disableNotifications: false,
   debugLogging: false,
+  debugLogToFile: false,
   claimGraceMs: 2500,
   scanFrontmatterLinks: false,
 };

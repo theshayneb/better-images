@@ -1,0 +1,20 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "..",
+    // Type-checking only (doesn't affect esbuild/Vite's actual runtime
+    // transform) — permits the default imports below (moment, node:path)
+    // without pulling in full esModuleInterop, which would also change how
+    // namespace imports like spark-md5's typecheck for src/ files reached
+    // transitively from here.
+    "allowSyntheticDefaultImports": true,
+    "paths": {
+      // Points type-checking at the same fake used at test runtime (aliased
+      // in vitest.config.mts) — the real "obsidian" package ships types for
+      // its full API, which test/mocks/obsidian.ts deliberately doesn't
+      // match (see the comment at the top of that file).
+      "obsidian": ["test/mocks/obsidian.ts"]
+    }
+  },
+  "include": ["**/*.ts", "../vitest.config.mts"]
+}

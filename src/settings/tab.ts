@@ -1,6 +1,6 @@
-import { App, PluginSettingTab, Setting, TFolder } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting, TFolder } from "obsidian";
 import type AttachmentOrganizerPlugin from "../main";
-import { configureLogging } from "../log";
+import { configureLogging, readLogFile } from "../log";
 import { formatDate } from "../core/template";
 import { FolderSuggest } from "../ui/folderSuggest";
 import { CORE_EXTENSIONS, CoreExtension, ExcludedFolder, ExtensionOverride, RootMode } from "./types";
@@ -11,6 +11,16 @@ const ROOT_MODE_LABELS: Record<RootMode, string> = {
   inFolderBelowRoot: "Fixed folder",
   nextToNote: "Next to note, in folder specified below",
 };
+
+/** Triggers a browser-native save-to-Downloads for `content`, without needing to know where any given platform's Downloads folder actually lives. */
+function triggerDownload(filename: string, content: string): void {
+  const url = URL.createObjectURL(new Blob([content], { type: "text/plain" }));
+  const anchor = createEl("a", { attr: { href: url, download: filename } });
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
 
 const CORE_EXTENSION_DESCRIPTIONS: Record<CoreExtension, string> = {
   md: "Notes. Turning this off would let the plugin move and rename your notes themselves as if they were attachments.",
@@ -33,7 +43,12 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
     const settings = this.plugin.store.settings;
     const save = (): void => {
       this.plugin.store.scheduleSave();
-      configureLogging({ debug: settings.debugLogging, notifications: !settings.disableNotifications });
+      configureLogging({
+        debug: settings.debugLogging,
+        notifications: !settings.disableNotifications,
+        logToFile: settings.debugLogToFile,
+        plugin: this.plugin,
+      });
     };
 
     new Setting(containerEl).setName("Exclusions").setHeading();
@@ -206,9 +221,43 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
       .addToggle((t) =>
         t.setValue(settings.debugLogging).onChange((v) => {
           settings.debugLogging = v;
+          if (!v) settings.debugLogToFile = false;
           save();
+          this.display();
         })
       );
+
+    if (settings.debugLogging) {
+      new Setting(containerEl)
+        .setName("Also write debug log to a file")
+        .setDesc(
+          "Keeps the same log lines in a file inside this plugin's own data folder, so they survive a restart or crash - not just the developer console. Trimmed once it passes ~1 MB. Download it below."
+        )
+        .addToggle((t) =>
+          t.setValue(settings.debugLogToFile).onChange((v) => {
+            settings.debugLogToFile = v;
+            save();
+            this.display();
+          })
+        );
+
+      if (settings.debugLogToFile) {
+        new Setting(containerEl)
+          .setName("Download debug log")
+          .setDesc("Saves everything recorded so far as a plain text file, wherever your browser/OS puts downloads.")
+          .addButton((btn) =>
+            btn.setButtonText("Download").onClick(() => {
+              void readLogFile(this.plugin).then((content) => {
+                if (!content) {
+                  new Notice("[attachment-steward] Nothing recorded yet.");
+                  return;
+                }
+                triggerDownload(`attachment-steward-debug-${formatDate(undefined, "YYYY-MM-DD_HH-mm-ss")}.log`, content);
+              });
+            })
+          );
+      }
+    }
 
     new Setting(containerEl)
       .setName("Extension overrides")
