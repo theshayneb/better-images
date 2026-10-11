@@ -1,5 +1,6 @@
-import { App, normalizePath, Plugin } from "obsidian";
-import * as SparkMD5 from "spark-md5";
+import { App, normalizePath } from "obsidian";
+import type { StewardHost } from "../host";
+import SparkMD5 from "spark-md5";
 
 export const RECORDS_DIR = "records";
 export const ORPHANS_FILE = "orphans.json";
@@ -12,7 +13,7 @@ export const ORPHANS_FILE = "orphans.json";
 const MAX_ENCODED_KEY_LENGTH = 200;
 
 /** Vault-relative path to this plugin's own data folder (inside .obsidian/). */
-export function pluginDataDir(plugin: Plugin): string {
+export function pluginDataDir(plugin: StewardHost): string {
   return plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`;
 }
 
@@ -47,7 +48,7 @@ function shardKey(notePath: string): string {
  * events (and to the user) and never collides with anything the watcher
  * scans for manageable attachments.
  */
-export function shardPath(plugin: Plugin, notePath: string | null): string {
+export function shardPath(plugin: StewardHost, notePath: string | null): string {
   const dir = pluginDataDir(plugin);
   if (notePath === null) return normalizePath(`${dir}/${RECORDS_DIR}/${ORPHANS_FILE}`);
   const key = shardKey(stripMdExtension(notePath));

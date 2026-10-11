@@ -1,9 +1,9 @@
 import { App, TFile } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ensureFolder, InternalMoveTracker, processAttachment } from "../../src/engine/organizer";
-import { DEFAULT_SETTINGS, Settings } from "../../src/settings/types";
-import { Store } from "../../src/store/store";
-import { AttachmentRecord } from "../../src/store/types";
+import { ensureFolder, InternalMoveTracker, processAttachment } from "../../src/steward/engine/organizer";
+import { DEFAULT_SETTINGS, Settings } from "../../src/steward/settings/types";
+import { Store } from "../../src/steward/store/store";
+import { AttachmentRecord } from "../../src/steward/store/types";
 import { Plugin } from "obsidian";
 
 function settings(overrides: Partial<Settings> = {}): Settings {

@@ -188,13 +188,13 @@ describe('ImageAlignmentManager (integration-lite) — 12.x behaviors', () => {
     const writeSpy = vi.spyOn((app.vault as any).adapter, 'write');
 
     await manager.saveImageAlignmentToCache('Notes/n1.md', 'imgs/pic.png', 'left', '100px', '80px', true);
-    expect(writeSpy).toHaveBeenCalledWith('/plugins/image-converter/image-converter-image-alignments.json', expect.any(String));
+    expect(writeSpy).toHaveBeenCalledWith('/plugins/image-converter/better-images-image-alignments.json', expect.any(String));
 
     // Setting value 'config' maps to app.vault.configDir (typically .obsidian)
     plugin.settings.imageAlignmentCacheLocation = 'config';
     manager.updateCacheFilePath();
     await manager.saveImageAlignmentToCache('Notes/n1.md', 'imgs/pic2.png', 'right', '120px', '60px', false);
-    expect(writeSpy).toHaveBeenCalledWith('.obsidian/image-converter-image-alignments.json', expect.any(String));
+    expect(writeSpy).toHaveBeenCalledWith('.obsidian/better-images-image-alignments.json', expect.any(String));
   });
 
   // ========== 12.5 Apply on note open/layout ==========

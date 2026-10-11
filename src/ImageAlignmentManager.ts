@@ -41,7 +41,7 @@ export class ImageAlignmentManager {
 	private imageAlignment: ImageAlignment; // Instance of the new class
 
 	// BE cautions of using DOT files. Obsidian Sync will not sync dot files.
-	// private readonly CACHE_FILE = '.obsidian/image-converter-image-alignments.json';
+	// private readonly CACHE_FILE = '.obsidian/better-images-image-alignments.json';
 	private pluginDir: string;
 	private cacheFilePath = "";
 
@@ -104,10 +104,10 @@ export class ImageAlignmentManager {
 		const cacheLocation = this.plugin.settings.imageAlignmentCacheLocation;
 		const { configDir } = this.app.vault;
 		if (cacheLocation === "config") {
-			this.cacheFilePath = `${configDir}/image-converter-image-alignments.json`;
+			this.cacheFilePath = `${configDir}/better-images-image-alignments.json`;
 		} else {
 			// It has to be "plugin" now
-			this.cacheFilePath = `${this.pluginDir}/image-converter-image-alignments.json`;
+			this.cacheFilePath = `${this.pluginDir}/better-images-image-alignments.json`;
 		}
 	}
 
@@ -129,7 +129,7 @@ export class ImageAlignmentManager {
 			const { adapter } = this.app.vault;
 			// OPTION 1. Keep it in plugins folder, but Obsidian Sync will not sync it so alignment wont work on all devices
 			// const cachePath = `${this.pluginDir}/${this.CACHE_FILE}`;
-			// Option 2. Keep it in the .obsidian e.g. '.obsidian/image-converter-image-alignments.json';
+			// Option 2. Keep it in the .obsidian e.g. '.obsidian/better-images-image-alignments.json';
 			// Use this.cacheFilePath instead of the hardcoded path
 			if (await adapter.exists(this.cacheFilePath)) {
 				const data = await adapter.read(this.cacheFilePath);
@@ -154,7 +154,7 @@ export class ImageAlignmentManager {
 			const { adapter } = this.app.vault;
 			// OPTION 1. Keep it in plugins folder, but Obsidian Sync will not sync it so alignment wont work on all devices
 			// const cachePath = `${this.pluginDir}/${this.CACHE_FILE}`;
-			// Option 2. Keep it in the .obsidian e.g. '.obsidian/image-converter-image-alignments.json';
+			// Option 2. Keep it in the .obsidian e.g. '.obsidian/better-images-image-alignments.json';
 			await adapter.write(
 				this.cacheFilePath,
 				JSON.stringify(this.cache, null, 2)

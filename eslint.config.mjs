@@ -235,4 +235,18 @@ export default defineConfig([
 			],
 		},
 	},
+	// The attachment organizer (formerly Attachment Steward) follows its own
+	// upstream code style; keep the Obsidian rules but not the Airbnb style
+	// rules above, so it stays easy to compare with upstream.
+	{
+		files: ["src/steward/**/*.ts"],
+		rules: {
+			"id-length": "off",
+			"prefer-destructuring": "off",
+			"prefer-template": "off",
+			"@typescript-eslint/naming-convention": "off",
+			// Flags regex placeholders and "e.g." as not sentence case.
+			"obsidianmd/ui/sentence-case": "off",
+		},
+	},
 ]);

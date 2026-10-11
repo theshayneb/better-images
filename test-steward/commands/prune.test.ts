@@ -1,8 +1,8 @@
 import { App, Notice, Plugin } from "obsidian";
 import { beforeEach, describe, expect, it } from "vitest";
-import { pruneCommand, pruneFolderCommand } from "../../src/commands/prune";
-import { Store } from "../../src/store/store";
-import { AttachmentRecord } from "../../src/store/types";
+import { pruneCommand, pruneFolderCommand } from "../../src/steward/commands/prune";
+import { Store } from "../../src/steward/store/store";
+import { AttachmentRecord } from "../../src/steward/store/types";
 
 function record(overrides: Partial<AttachmentRecord> = {}): AttachmentRecord {
   return {

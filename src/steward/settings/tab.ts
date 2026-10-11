@@ -1,6 +1,6 @@
-import { App, Notice, PluginSettingTab, Setting, TFolder } from "obsidian";
-import type AttachmentOrganizerPlugin from "../main";
-import { configureLogging, readLogFile } from "../log";
+import { App, Notice, Setting, TFolder } from "obsidian";
+import type { StewardModule } from "../module";
+import { readLogFile } from "../log";
 import { formatDate } from "../core/template";
 import { FolderSuggest } from "../ui/folderSuggest";
 import { CORE_EXTENSIONS, CoreExtension, ExcludedFolder, ExtensionOverride, RootMode } from "./types";
@@ -16,7 +16,7 @@ const ROOT_MODE_LABELS: Record<RootMode, string> = {
 function triggerDownload(filename: string, content: string): void {
   const url = URL.createObjectURL(new Blob([content], { type: "text/plain" }));
   const anchor = createEl("a", { attr: { href: url, download: filename } });
-  document.body.appendChild(anchor);
+  activeDocument.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
@@ -28,13 +28,19 @@ const CORE_EXTENSION_DESCRIPTIONS: Record<CoreExtension, string> = {
   base: 'Base files. A note embedding a base, e.g. "![[My data.base#View]]", would otherwise get its base moved and renamed like a regular attachment.',
 };
 
-export class AttachmentOrganizerSettingTab extends PluginSettingTab {
-  constructor(app: App, private readonly plugin: AttachmentOrganizerPlugin) {
-    super(app, plugin);
-  }
+/** Draws the attachment organizer's settings into `containerEl`, the "Attachments" section of the combined settings tab. */
+export function renderStewardSettings(containerEl: HTMLElement, plugin: StewardModule, redraw: () => void): void {
+  new StewardSettingsSection(plugin.app, plugin, containerEl, redraw).display();
+}
 
-  // Imperative display() is deprecated since Obsidian 1.13.0 in favor of a
-  // declarative getSettingDefinitions() API — not migrated yet, see ROADMAP.md.
+class StewardSettingsSection {
+  constructor(
+    private readonly app: App,
+    private readonly plugin: StewardModule,
+    private readonly containerEl: HTMLElement,
+    private readonly redraw: () => void
+  ) {}
+
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
@@ -43,12 +49,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
     const settings = this.plugin.store.settings;
     const save = (): void => {
       this.plugin.store.scheduleSave();
-      configureLogging({
-        debug: settings.debugLogging,
-        notifications: !settings.disableNotifications,
-        logToFile: settings.debugLogToFile,
-        plugin: this.plugin,
-      });
+      this.plugin.applyLogging();
     };
 
     new Setting(containerEl).setName("Exclusions").setHeading();
@@ -82,7 +83,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
       .setName("Excluded folders")
       .setHeading()
       .setDesc(
-        'Attachments already inside these folders are never touched. Start typing to pick from your existing folders, or type a path that doesn\'t exist yet (e.g. for a folder you plan to create). Same effect as right-clicking a folder → Attachment Steward → "Exclude this folder".'
+        'Attachments already inside these folders are never touched. Start typing to pick from your existing folders, or type a path that doesn\'t exist yet (e.g. for a folder you plan to create). Same effect as right-clicking a folder → Organize attachments → "Exclude this folder".'
       );
     this.renderExcludedFolders(containerEl, settings.excludedFolders, save);
 
@@ -90,7 +91,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
       btn.setButtonText("Add excluded folder").onClick(() => {
         settings.excludedFolders.push({ path: "", includeSubpaths: true });
         save();
-        this.display();
+        this.redraw();
       })
     );
 
@@ -111,7 +112,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
         dd.setValue(settings.rootMode).onChange((value) => {
           settings.rootMode = value as RootMode;
           save();
-          this.display();
+          this.redraw();
         });
       });
 
@@ -216,14 +217,14 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Debug logging")
       .setDesc(
-        "Print detailed step-by-step logs to the developer console, prefixed [attachment-steward]. Open the console with Cmd+Option+I (Mac) or Ctrl+Shift+I (Windows/Linux). Leave off for everyday use - it's noisy."
+        "Print detailed step-by-step logs to the developer console, prefixed [better-images]. Open the console with Cmd+Option+I (Mac) or Ctrl+Shift+I (Windows/Linux). Leave off for everyday use - it's noisy."
       )
       .addToggle((t) =>
         t.setValue(settings.debugLogging).onChange((v) => {
           settings.debugLogging = v;
           if (!v) settings.debugLogToFile = false;
           save();
-          this.display();
+          this.redraw();
         })
       );
 
@@ -237,7 +238,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           t.setValue(settings.debugLogToFile).onChange((v) => {
             settings.debugLogToFile = v;
             save();
-            this.display();
+            this.redraw();
           })
         );
 
@@ -247,12 +248,12 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           .setDesc("Saves everything recorded so far as a plain text file, wherever your browser/OS puts downloads.")
           .addButton((btn) =>
             btn.setButtonText("Download").onClick(() => {
-              void readLogFile(this.plugin).then((content) => {
+              void readLogFile(this.plugin.host).then((content) => {
                 if (!content) {
-                  new Notice("[attachment-steward] Nothing recorded yet.");
+                  new Notice("[better-images] Nothing recorded yet.");
                   return;
                 }
-                triggerDownload(`attachment-steward-debug-${formatDate(undefined, "YYYY-MM-DD_HH-mm-ss")}.log`, content);
+                triggerDownload(`better-images-attachments-debug-${formatDate(undefined, "YYYY-MM-DD_HH-mm-ss")}.log`, content);
               });
             })
           );
@@ -275,7 +276,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           formatTemplate: settings.formatTemplate,
         });
         save();
-        this.display();
+        this.redraw();
       })
     );
 
@@ -335,7 +336,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           entry.path = folder.path;
           text.setValue(folder.path);
           save();
-          this.display();
+          this.redraw();
         });
       });
 
@@ -363,7 +364,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           .onClick(() => {
             excludedFolders.splice(index, 1);
             save();
-            this.display();
+            this.redraw();
           });
         metaRow.appendChild(btn.extraSettingsEl);
       });
@@ -413,7 +414,7 @@ export class AttachmentOrganizerSettingTab extends PluginSettingTab {
           .onClick(() => {
             overrides.splice(index, 1);
             save();
-            this.display();
+            this.redraw();
           });
         metaRow.appendChild(btn.extraSettingsEl);
       });

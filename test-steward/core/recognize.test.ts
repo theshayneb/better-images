@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { recognizeAppliedName } from "../../src/core/recognize";
-import { formatDate } from "../../src/core/template";
+import { recognizeAppliedName } from "../../src/steward/core/recognize";
+import { formatDate } from "../../src/steward/core/template";
 
 const FORMAT = "${date}-${originalname}";
 const DATE_FORMAT = "YYYY-MM-DD-HH_mm_ss_SSS";

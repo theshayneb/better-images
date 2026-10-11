@@ -3868,3 +3868,104 @@ button.image-converter-encoder-detected:hover,
 		font-size: 0.9em;
 	}
 }
+
+/* ==========================================================================
+   Attachments (formerly Attachment Steward)
+   ========================================================================== */
+
+.attachment-organizer-preview-modal .ao-diff-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+}
+
+.attachment-organizer-preview-modal .ao-diff-row .ao-from {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.attachment-organizer-preview-modal .ao-diff-row .ao-to {
+  color: var(--text-normal);
+}
+
+.attachment-organizer-preview-modal .ao-summary {
+  margin-bottom: 8px;
+  font-weight: var(--font-medium);
+}
+
+.attachment-organizer-preview-modal .ao-orphan-row {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+}
+
+.attachment-organizer-settings .ao-extension-override-row,
+.attachment-organizer-settings .ao-excluded-folder-row {
+  padding: 6px 0;
+}
+
+/* One deliberate layout at every width, not a reflow that only holds up
+   above some assumed container size: field(s) always take the full row,
+   toggle/delete controls always sit in their own row underneath. */
+.attachment-organizer-settings .ao-excluded-folder-control,
+.attachment-organizer-settings .ao-extension-override-control {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 6px;
+}
+
+.attachment-organizer-settings .ao-excluded-folder-row input[type="text"],
+.attachment-organizer-settings .ao-extension-override-row input[type="text"] {
+  width: 100%;
+}
+
+.attachment-organizer-settings .ao-excluded-folder-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.attachment-organizer-settings .ao-excluded-folder-toggle-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.attachment-organizer-settings .ao-extension-override-meta {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.attachment-organizer-settings .ao-excluded-folder-hint {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.attachment-organizer-settings .ao-excluded-folder-missing {
+  border-left: 2px solid var(--text-error);
+  padding-left: 8px;
+}
+
+.attachment-organizer-settings .ao-excluded-folder-warning {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-error);
+  white-space: nowrap;
+}
+
+/* Settings tab: Images / Attachments switcher */
+.better-images-section-switcher {
+  display: flex;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-4);
+}

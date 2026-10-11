@@ -1,10 +1,10 @@
 import { App, Plugin, TFile } from "obsidian";
 import { describe, expect, it } from "vitest";
-import { handleNoteRename } from "../../src/engine/noteRename";
-import { InternalMoveTracker } from "../../src/engine/organizer";
-import { DEFAULT_SETTINGS, Settings } from "../../src/settings/types";
-import { Store } from "../../src/store/store";
-import { AttachmentRecord } from "../../src/store/types";
+import { handleNoteRename } from "../../src/steward/engine/noteRename";
+import { InternalMoveTracker } from "../../src/steward/engine/organizer";
+import { DEFAULT_SETTINGS, Settings } from "../../src/steward/settings/types";
+import { Store } from "../../src/steward/store/store";
+import { AttachmentRecord } from "../../src/steward/store/types";
 
 function settings(overrides: Partial<Settings> = {}): Settings {
   return {

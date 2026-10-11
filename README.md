@@ -1,77 +1,72 @@
-# Image Converter for ObsidianMD
+# Better Images & Attachments
 
-Making image management inside Obsidian slightly more convenient.
+An Obsidian plugin that combines two plugins into one:
 
-https://github.com/xRyul/obsidian-image-converter/assets/47340038/63a0646b-29ec-4055-abfc-55d31e07b2f7
+- **Images** (based on [Image Converter](https://github.com/xRyul/obsidian-image-converter) by xRyul): convert, compress, resize, crop, rotate, flip, annotate and align images, with batch processing.
+- **Attachments** (based on [Attachment Steward](https://github.com/m1roff/obsidian-attachment-steward) by miroff): files every attachment into templated folders and filenames, remembers each file's original name, and never breaks links.
 
+Plugin ID: `better-images`.
 
+## Install with BRAT
+
+1. Install and enable the **BRAT** community plugin.
+2. In BRAT's settings choose **Add beta plugin** and enter `theshayneb/better-images`.
+3. Enable **Better Images & Attachments** under Settings → Community plugins.
+
+If you use the original Image Converter or Attachment Steward, turn them off: running them alongside this plugin would process every pasted image twice. Settings are not carried over from them, so set this plugin up once (it has its own `data.json`).
+
+## Settings
+
+The settings tab has two sections, switched with the buttons at the top:
+
+- **Images**: the full Image Converter settings (presets for conversion, folders, filenames, link format, resizing; alignment, drag-resize, captions, context menu).
+- **Attachments**: the full Attachment Steward settings (location and name templates, exclusions, per-extension overrides, maintenance actions).
+
+### Using both together
+
+When you paste or drop an image, the Images half converts it and saves it; the Attachments half then notices the new file, waits until a note links to it, and moves and renames it according to its templates. Converting a file to a new format (for example PNG to WebP) is recognized as the same attachment, so it keeps its original name.
+
+To avoid two sets of naming rules fighting, pick one half to decide where files go:
+
+- **Let Attachments organize** (recommended): leave the Images folder and filename presets on their defaults and set the location and name templates under Attachments.
+- **Let Images organize**: exclude the folders your Images presets write to under Attachments → Exclusions (or right-click the folder → Organize attachments → Exclude this folder).
 
 ## Features
-Supported image formats: WEBP, JPG, PNG, HEIC, TIF
-- 🖼️ **Convert**: Automatically convert dropped/pasted images into WEBP, JPG or PNG
-- 🗜️ **Compress**: Reduce file size by specifying Quality value between 1-100
-- 📏 **Resize** images (destructive and non-destructive)
-	- Automatically read image dimensions and apply it to the image link e.g.: apply image width to  `|width` or specify any custom size. 
-	- Resize by dragging edge of the image, or with Scrollwheel (e.g., **CMD+Scrollwheel**)  </br>
-      <img src="https://github.com/xRyul/obsidian-image-converter/assets/47340038/5724c6e9-19d4-4eaf-a559-1168f6557a14" width="740px"></br>
-	- Resize **original** image (width, height, longest edge, shortest edge, fit, fill)
-- Align (left, right center) and wrap text around images without any custom syntax in your links:  </br>
-  <img src="https://github.com/user-attachments/assets/2224d5d3-7563-4e53-a412-cfbb975e01f5" width="740px"></br>
-- **Image annotation** and **markup tool**. Draw, write, scribble, annotate, markup on top of images right inside Obsidian.  </br>
-  <img src="https://github.com/user-attachments/assets/71b8d71d-2608-441a-91cd-b7003b84d23a" width="740px"><img src="https://github.com/user-attachments/assets/a5f74860-a473-4163-b616-f2a11a6cbc4f" width="740px"></br>
-  <img src="https://github.com/user-attachments/assets/828c1128-719a-45ef-a5fd-cad2c7222e71" width="740px"><img src="https://github.com/user-attachments/assets/7b1500a9-297b-4320-ba5a-9f446c6b3a4c" width="740px"></br>
-  <img src="https://github.com/user-attachments/assets/24ab0e1a-0095-4936-84f5-61eaabd391f8" width="740px"><img src="https://github.com/user-attachments/assets/ea312b9d-dbcf-4963-85ba-c9824c9a2153" width="740px"></br>
-- ✂️ **Crop, rotate, and flip images**  </br>
-  <img src="https://github.com/user-attachments/assets/a4ead276-ac4e-4523-8567-fa064bdf7119" width="740px"><<img src="https://github.com/user-attachments/assets/6ff7c138-90fe-456d-b968-c5fb45d27bbf" width="740px"></br>
 
-- 📁 **Custom File Management and Renaming**:
-	- **Rename**: Use variables (e.g., `{noteName}`, `{fileName}`) to auto-rename images [List of Supported Variables](<docs/Variables Reference Guide.md>)
-	- **Output**: Organize images into custom output folders with variables.[List of Supported Variables](<docs/Variables Reference Guide.md>)
-- 🌍 **Pure JavaScript implementation** that works completely **offline**. No external APIs or binary dependencies (such as ImageMagick, Cloudinary, FFmpeg, sharp, etc.) required - keeping it lightweight, portable and secure.
+### Images
 
+- Convert pasted and dropped images to WebP, JPG or PNG; compress with a quality setting.
+- Resize originals or just the link (`|width`), including drag-resize and scroll-wheel resize.
+- Crop, rotate and flip; annotate and draw on images.
+- Align images and wrap text around them; captions.
+- Right-click menu on images in notes: rename/move, resize, copy, copy as Base64, convert/compress, crop/rotate/flip, annotate, delete image and link.
+- Batch process a note, a folder or the whole vault.
 
-## Other
-- 🔄 **Batch Processing**: Convert, compress, and resize all images in a note or across the entire vault.
-- 🔗 **Compatibility with other markdown editors:** Ability to have **Markdown links for images**, and **Wiki links** for all other links.
-- 🖱️**Custom right click context menus:**
-	- Copy to clipboard  </br>
-	  <img src="https://github.com/xRyul/obsidian-image-converter/assets/47340038/2034a444-cd49-4ce0-af98-745694ba4986" width="740px"></br>
-	- Copy as Base64 encoded image
- 	- **Resize** original image you have just clicked upon  </br>
-	  <img src="https://github.com/xRyul/obsidian-image-converter/assets/47340038/3367b41c-63fa-4a1c-a616-8561e467eef7" width="740px">  </br>
-    - **Delete image from vault** - removes image and its link from the vault
+More detail: [docs/image-converter/README.md](docs/image-converter/README.md).
 
+### Attachments
 
-## 📚 Documentation
-- Settings overview
-- Basic usage examples
-- [Annotation tool](<docs/Annotation tool.md>)
-- Crop tool
-- [List of supported variables and use-case examples](<docs/Variables Reference Guide.md>)
-- [How to compress images without quality loss - empirical analysis of image format vs image quality vs file size](<docs/How to compress images without quality loss - empirical analysis of image format vs image quality vs file size.md>)
-- Optional PNG optimization (pngquant): see docs/pngquant.md
+- Moves and renames new attachments as soon as a note links to them, using templates such as `${notename}`, `${originalname}`, `${date}` and `${md5}`.
+- Keeps each attachment's original name, so rules can be changed and reapplied any time.
+- Moves attachments along when their note is renamed.
+- Folder right-click menu (Organize attachments): adopt, reapply rules, prune records, find attachments with no links, exclude the folder.
+- Commands: reapply rules (all, active note), adopt unmanaged attachments (active note, whole vault), prune orphaned records.
 
+More detail: [docs/attachment-steward/README.md](docs/attachment-steward/README.md).
 
-## How to install
+## Development
 
-1. Downlaod `main.js`, `styles.css`, `manifest.json` files from the latest release page.
-2. Creane new folder inside `VaultFolder/.obsidian/plugins/` named  `obsidian-image-converter` . If plugins folder doesn't exist, then create it manually. 
-3. Move downloaded files into `/obsidian-image-converter` folder. 
-4. Enable the plugin in ObsidianMD. 
+```
+npm ci
+npm run typecheck   # tsc for the plugin and the Attachments tests
+npm test            # Images tests (tests/) and Attachments tests (test-steward/)
+npm run build       # writes build/main.js, build/manifest.json, build/styles.css
+```
 
-## 🐛 Issues & Support
+Code layout: the image features live in `src/`, the attachment organizer in `src/steward/` (started from `src/steward/module.ts`). `src/main.ts` loads both, and `src/BetterImagesSettingTab.ts` is the combined settings tab.
 
-Found a bug or need help? [Open an issue](https://github.com/xRyul/obsidian-image-converter/issues)
+Releases are published by `.github/workflows/release.yml`; see [CHANGELOG.md](CHANGELOG.md).
 
-If you find this plugin useful, your support keeps this project alive and growing:
+## License
 
-[![Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/xryul)
-
-## 📜 License
-
-MIT License - see [LICENSE](LICENSE)
-
-## 🙏 Credits
-
-- Original inspiration from [musug's plugin](https://github.com/musug/obsidian-paste-png-to-jpeg)
-- [FabricJS](https://fabricjs.com/) for annotation capabilities
+MIT. See [LICENSE](LICENSE) for the copyright notices of both original plugins.

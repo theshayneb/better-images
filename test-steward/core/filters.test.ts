@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { effectiveTemplates, findExtensionOverride, isExcludedByPath, isExcludedCoreExtension, matchesExtensionPattern, shouldManage } from "../../src/core/filters";
-import { DEFAULT_SETTINGS, Settings } from "../../src/settings/types";
+import { effectiveTemplates, findExtensionOverride, isExcludedByPath, isExcludedCoreExtension, matchesExtensionPattern, shouldManage } from "../../src/steward/core/filters";
+import { DEFAULT_SETTINGS, Settings } from "../../src/steward/settings/types";
 
 function settings(overrides: Partial<Settings> = {}): Settings {
   return { ...DEFAULT_SETTINGS, excludedFolders: [], extensionOverrides: [], ...overrides };

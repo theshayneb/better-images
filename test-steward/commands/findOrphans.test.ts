@@ -1,8 +1,8 @@
 import { App, Modal, Notice } from "obsidian";
 import { beforeEach, describe, expect, it } from "vitest";
-import { findOrphansCommand } from "../../src/commands/findOrphans";
-import { OrphanReportModal } from "../../src/ui/orphanReportModal";
-import { DEFAULT_SETTINGS } from "../../src/settings/types";
+import { findOrphansCommand } from "../../src/steward/commands/findOrphans";
+import { OrphanReportModal } from "../../src/steward/ui/orphanReportModal";
+import { DEFAULT_SETTINGS } from "../../src/steward/settings/types";
 
 describe("findOrphansCommand", () => {
   beforeEach(() => {

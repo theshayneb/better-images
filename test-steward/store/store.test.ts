@@ -1,7 +1,7 @@
 import { App, Plugin } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Store } from "../../src/store/store";
-import { AttachmentRecord } from "../../src/store/types";
+import { Store } from "../../src/steward/store/store";
+import { AttachmentRecord } from "../../src/steward/store/types";
 
 function makePlugin(): Plugin {
   const app = new App();

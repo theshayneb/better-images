@@ -1,8 +1,8 @@
 import { App, TFile } from "obsidian";
 import { describe, expect, it } from "vitest";
-import { contextFor, resolveDestination, rootFolder } from "../../src/core/resolve";
-import { DEFAULT_SETTINGS, Settings } from "../../src/settings/types";
-import { AttachmentRecord } from "../../src/store/types";
+import { contextFor, resolveDestination, rootFolder } from "../../src/steward/core/resolve";
+import { DEFAULT_SETTINGS, Settings } from "../../src/steward/settings/types";
+import { AttachmentRecord } from "../../src/steward/store/types";
 
 function settings(overrides: Partial<Settings> = {}): Settings {
   return { ...DEFAULT_SETTINGS, extensionOverrides: [], excludedFolders: [], ...overrides };

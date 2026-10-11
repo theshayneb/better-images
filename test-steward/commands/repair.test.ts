@@ -1,11 +1,11 @@
 import { App, Modal, Notice, Plugin, Setting } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { repairStampedNamesCommand } from "../../src/commands/repair";
-import { formatDate } from "../../src/core/template";
-import { InternalMoveTracker } from "../../src/engine/organizer";
-import { DEFAULT_SETTINGS, Settings } from "../../src/settings/types";
-import { Store } from "../../src/store/store";
-import { AttachmentRecord } from "../../src/store/types";
+import { repairStampedNamesCommand } from "../../src/steward/commands/repair";
+import { formatDate } from "../../src/steward/core/template";
+import { InternalMoveTracker } from "../../src/steward/engine/organizer";
+import { DEFAULT_SETTINGS, Settings } from "../../src/steward/settings/types";
+import { Store } from "../../src/steward/store/store";
+import { AttachmentRecord } from "../../src/steward/store/types";
 
 const FORMAT = "${date}-${originalname}";
 const DATE_FORMAT = "YYYY-MM-DD-HH_mm_ss_SSS"; // full precision, so the recovered importedAt round-trips exactly

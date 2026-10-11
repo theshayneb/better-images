@@ -30,7 +30,6 @@ import { ImageCaptionManager } from "./ImageCaptionManager"
 import {
     ImageConverterSettings,
     DEFAULT_SETTINGS,
-    ImageConverterSettingTab,
     ConversionPreset,
     FilenamePreset,
     FolderPreset,
@@ -38,9 +37,18 @@ import {
 } from "./ImageConverterSettings";
 
 import { PresetSelectionModal } from "./PresetSelectionModal";
+import { BetterImagesSettingTab } from "./BetterImagesSettingTab";
+import { StewardModule } from "./steward/module";
+
+/** Key in data.json holding the attachment organizer's settings; everything else in the file is the image settings. */
+const ATTACHMENTS_DATA_KEY = "attachmentSteward";
 
 export default class ImageConverterPlugin extends Plugin {
     settings!: ImageConverterSettings;
+    // Attachment organizer (formerly Attachment Steward)
+    steward!: StewardModule;
+    private stewardData: unknown = null;
+    settingTab!: BetterImagesSettingTab;
 
     // Check supported image formats
     supportedImageFormats!: SupportedImageFormats;
@@ -139,7 +147,21 @@ export default class ImageConverterPlugin extends Plugin {
     async onload() {
         await this.loadSettings();
         this.updateBodyStateClasses();
-        this.addSettingTab(new ImageConverterSettingTab(this.app, this));
+
+        this.steward = new StewardModule(this, {
+            app: this.app,
+            manifest: this.manifest,
+            loadData: () => Promise.resolve(this.stewardData),
+            saveData: async (data: unknown) => {
+                this.stewardData = data;
+                await this.saveAllData();
+            },
+        });
+        await this.steward.load();
+
+        this.settingTab = new BetterImagesSettingTab(this.app, this);
+        this.addSettingTab(this.settingTab);
+        this.steward.onExternalSettingsChange = () => this.settingTab.refreshAttachments();
 
         // Initialize core components immediately
         this.supportedImageFormats = new SupportedImageFormats(this.app);
@@ -185,7 +207,7 @@ export default class ImageConverterPlugin extends Plugin {
             this.initializeComponents().catch((err) => {
                 console.error('Failed to initialize components:', err);
                 //eslint-disable-next-line
-                new Notice('Image Converter: Failed to initialize. Check console for details.');
+                new Notice('Better Images & Attachments: failed to initialize. Check console for details.');
             });
 
             this.registerImageResizerWorkspaceEvents();
@@ -334,10 +356,8 @@ export default class ImageConverterPlugin extends Plugin {
         });
 
         this.addCommand({
-            // eslint-disable-next-line obsidianmd/commands/no-plugin-id-in-command-id -- not to break bindings
-            id: 'open-image-converter-settings',
-            // eslint-disable-next-line obsidianmd/commands/no-plugin-name-in-command-name, obsidianmd/ui/sentence-case -- not to break bindings
-            name: 'Open Image Converter Settings',
+            id: 'open-settings',
+            name: 'Open settings',
             callback: () => this.commandOpenSettingsTab()
         });
 
@@ -347,6 +367,8 @@ export default class ImageConverterPlugin extends Plugin {
 
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     async onunload() {
+        this.steward?.unload();
+
         // Clean up alignment related components first
         if (this.ImageAlignmentManager) {
             this.ImageAlignmentManager.onunload();
@@ -393,7 +415,10 @@ export default class ImageConverterPlugin extends Plugin {
 
     // Load settings method
     async loadSettings() {
-        const loadedSettings = (await this.loadData()) as Partial<ImageConverterSettings> | null;
+        const loadedData = (await this.loadData()) as (Partial<ImageConverterSettings> & { [ATTACHMENTS_DATA_KEY]?: unknown }) | null;
+        const { [ATTACHMENTS_DATA_KEY]: stewardData, ...imageSettings } = loadedData ?? {};
+        this.stewardData = stewardData ?? null;
+        const loadedSettings: Partial<ImageConverterSettings> | null = loadedData ? imageSettings : null;
         this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedSettings ?? {}) as ImageConverterSettings;
 
         const isFreshInstall = !loadedSettings || Object.keys(loadedSettings).length === 0;
@@ -419,8 +444,13 @@ export default class ImageConverterPlugin extends Plugin {
 
     // Save settings method
     async saveSettings() {
-        await this.saveData(this.settings);
+        await this.saveAllData();
         this.updateBodyStateClasses();
+    }
+
+    // Image settings and the attachment organizer's settings share data.json.
+    private async saveAllData() {
+        await this.saveData({ ...this.settings, [ATTACHMENTS_DATA_KEY]: this.stewardData });
     }
 
     // Command to open settings tab
@@ -442,7 +472,7 @@ export default class ImageConverterPlugin extends Plugin {
             name: 'Reload plugin',
             callback: async () => {
                 // eslint-disable-next-line obsidianmd/ui/sentence-case
-                new Notice('Reloading Image Converter...');
+                new Notice('Reloading Better Images & Attachments...');
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access -- Obsidian internal API
                 const plugins = (this.app as any).plugins as { disablePlugin: (id: string) => Promise<void>; enablePlugin: (id: string) => Promise<void> } | undefined;
 
@@ -469,7 +499,7 @@ export default class ImageConverterPlugin extends Plugin {
                     }
 
                     // eslint-disable-next-line obsidianmd/ui/sentence-case
-                    new Notice('Image Converter reloaded!');
+                    new Notice('Better Images & Attachments reloaded!');
                 } catch (error) {
                     console.error("Error reloading plugin:", error);
                     new Notice('Failed to reload plugin, see console');

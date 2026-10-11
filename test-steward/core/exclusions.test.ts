@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { addExcludedFolder, isFolderListed, removeExcludedFolder, renameExcludedFolders } from "../../src/core/exclusions";
-import { DEFAULT_SETTINGS, Settings } from "../../src/settings/types";
+import { addExcludedFolder, isFolderListed, removeExcludedFolder, renameExcludedFolders } from "../../src/steward/core/exclusions";
+import { DEFAULT_SETTINGS, Settings } from "../../src/steward/settings/types";
 
 function settings(): Settings {
   return { ...DEFAULT_SETTINGS, excludedFolders: [] };

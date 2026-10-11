@@ -1,4 +1,5 @@
 import { Platform, Plugin, TFolder } from "obsidian";
+import type { StewardHost } from "./host";
 import { adoptActiveNoteCommand, adoptFolderCommand, adoptVaultCommand } from "./commands/adopt";
 import { findOrphansCommand } from "./commands/findOrphans";
 import { pruneCommand, pruneFolderCommand } from "./commands/prune";
@@ -7,7 +8,7 @@ import { repairStampedNamesCommand } from "./commands/repair";
 import { addExcludedFolder, isFolderListed, removeExcludedFolder, renameExcludedFolders } from "./core/exclusions";
 import { Watcher } from "./engine/watcher";
 import { configureLogging, flushLog, log } from "./log";
-import { AttachmentOrganizerSettingTab } from "./settings/tab";
+import { renderStewardSettings } from "./settings/tab";
 import { Store } from "./store/store";
 
 interface Commands {
@@ -23,27 +24,39 @@ interface Commands {
   repairStampedNames: () => Promise<void>;
 }
 
-export default class AttachmentOrganizerPlugin extends Plugin {
+/**
+ * The attachment organizer (formerly the stand-alone Attachment Steward
+ * plugin), run as a module of the combined plugin. It registers its events,
+ * commands and menus on the host plugin, so Obsidian cleans them up when the
+ * plugin unloads.
+ */
+export class StewardModule {
   store!: Store;
   private watcher!: Watcher;
   private commands!: Commands;
-  private settingTab!: AttachmentOrganizerSettingTab;
 
-  async onload(): Promise<void> {
-    this.store = new Store(this);
+  /** Called after an exclusion changes outside the settings tab, so an open tab can redraw. */
+  onExternalSettingsChange: () => void = () => {};
+
+  constructor(
+    readonly plugin: Plugin,
+    readonly host: StewardHost
+  ) {}
+
+  get app() {
+    return this.plugin.app;
+  }
+
+  async load(): Promise<void> {
+    this.store = new Store(this.host);
     await this.store.load();
-    configureLogging({
-      debug: this.store.settings.debugLogging,
-      notifications: !this.store.settings.disableNotifications,
-      logToFile: this.store.settings.debugLogToFile,
-      plugin: this,
-    });
+    this.applyLogging();
 
     this.watcher = new Watcher(this.app, this.store);
     // 'create' fires for every pre-existing file on vault load too — only
     // start reacting once the initial layout (and initial file flood) settles.
     this.app.workspace.onLayoutReady(() => {
-      this.watcher.register((ref) => this.registerEvent(ref));
+      this.watcher.register((ref) => this.plugin.registerEvent(ref));
     });
 
     this.commands = {
@@ -59,38 +72,38 @@ export default class AttachmentOrganizerPlugin extends Plugin {
       repairStampedNames: repairStampedNamesCommand(this.app, this.store, this.watcher.internalMoves),
     };
 
-    this.addCommand({
-      id: "reapply-all",
+    this.plugin.addCommand({
+      id: "attachments-reapply-all",
       name: "Reapply rules to all managed attachments",
       callback: this.commands.reapplyAll,
     });
-    this.addCommand({
-      id: "reapply-active-note",
+    this.plugin.addCommand({
+      id: "attachments-reapply-active-note",
       name: "Reapply rules to active note's attachments",
       callback: this.commands.reapplyActiveNote,
     });
-    this.addCommand({
-      id: "adopt-active-note",
+    this.plugin.addCommand({
+      id: "attachments-adopt-active-note",
       name: "Adopt unmanaged attachments in active note",
       callback: this.commands.adoptActiveNote,
     });
-    this.addCommand({
-      id: "adopt-vault",
+    this.plugin.addCommand({
+      id: "attachments-adopt-vault",
       name: "Adopt unmanaged attachments in whole vault",
       callback: this.commands.adoptVault,
     });
-    this.addCommand({
-      id: "prune-orphaned-records",
+    this.plugin.addCommand({
+      id: "attachments-prune-orphaned-records",
       name: "Prune orphaned attachment records",
       callback: this.commands.prune,
     });
-    this.addCommand({
-      id: "repair-stamped-names",
+    this.plugin.addCommand({
+      id: "attachments-repair-stamped-names",
       name: "Repair attachment names stamped by a past sync bug",
       callback: this.commands.repairStampedNames,
     });
 
-    this.registerEvent(
+    this.plugin.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
         if (!(file instanceof TFolder)) return;
         if (renameExcludedFolders(this.store.settings, oldPath, file.path)) {
@@ -100,12 +113,12 @@ export default class AttachmentOrganizerPlugin extends Plugin {
           // subfolder) hasn't settled to the new paths yet — re-rendering
           // synchronously here makes an existing folder briefly show as
           // "not found" until the settings tab is next opened.
-          window.setTimeout(() => this.refreshSettingsTab(), 0);
+          window.setTimeout(() => this.onExternalSettingsChange(), 0);
         }
       })
     );
 
-    this.registerEvent(
+    this.plugin.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
         if (!(file instanceof TFolder)) return;
         const excluded = isFolderListed(this.store.settings.excludedFolders, file.path);
@@ -140,10 +153,10 @@ export default class AttachmentOrganizerPlugin extends Plugin {
               log.notice(`Removed "${file.path}" from Exclusions.`);
             } else {
               addExcludedFolder(this.store.settings, file.path);
-              log.notice(`Excluded "${file.path}" from Attachment Steward.`);
+              log.notice(`Excluded "${file.path}" from attachment organizing.`);
             }
             this.store.scheduleSave();
-            this.refreshSettingsTab();
+            this.onExternalSettingsChange();
           },
         };
 
@@ -153,13 +166,13 @@ export default class AttachmentOrganizerPlugin extends Plugin {
           // gesture — see https://forum.obsidian.md/t/87532. Flatten into the root
           // menu instead, under a non-clickable label so the group still reads as one
           // unit without repeating the plugin name on every line.
-          menu.addItem((mi) => mi.setTitle("Attachment Steward").setIcon("paperclip").setIsLabel(true));
+          menu.addItem((mi) => mi.setTitle("Organize attachments").setIcon("paperclip").setIsLabel(true));
           for (const { title, icon, onClick } of [...items, exclusionItem]) {
             menu.addItem((mi) => mi.setTitle(title).setIcon(icon).onClick(onClick));
           }
         } else {
           menu.addItem((item) => {
-            item.setTitle("Attachment Steward").setIcon("paperclip");
+            item.setTitle("Organize attachments").setIcon("paperclip");
             const submenu = item.setSubmenu();
             for (const { title, icon, onClick } of items) {
               submenu.addItem((si) => si.setTitle(title).setIcon(icon).onClick(onClick));
@@ -172,25 +185,29 @@ export default class AttachmentOrganizerPlugin extends Plugin {
         }
       })
     );
-
-    this.settingTab = new AttachmentOrganizerSettingTab(this.app, this);
-    this.addSettingTab(this.settingTab);
   }
 
-  onunload(): void {
+  /** Re-reads the logging switches from settings; call after they change. */
+  applyLogging(): void {
+    configureLogging({
+      debug: this.store.settings.debugLogging,
+      notifications: !this.store.settings.disableNotifications,
+      logToFile: this.store.settings.debugLogToFile,
+      plugin: this.host,
+    });
+  }
+
+  renderSettings(containerEl: HTMLElement, redraw: () => void): void {
+    renderStewardSettings(containerEl, this, redraw);
+  }
+
+  unload(): void {
     // Plugin.onunload isn't awaited by Obsidian, so this stays synchronous
     // and fires the flushes as detached promises with their own error
     // handling instead of silently returning ones Obsidian will never wait on.
+    if (!this.store) return;
     void this.store.saveNow().catch((err) => log.error("failed to save on unload", err));
-    void flushLog().catch((err) => console.error("[attachment-steward] failed to flush debug log on unload", err));
-  }
-
-  /**
-   * Re-render the settings tab so it reflects changes made elsewhere (context menu, folder rename) without the user having to close and reopen it. Cheap no-op if the tab isn't currently open.
-   * Calls the deprecated display() — see ROADMAP.md for the getSettingDefinitions() migration this will need to follow.
-   */
-  private refreshSettingsTab(): void {
-    if (this.settingTab.containerEl.isShown()) this.settingTab.display();
+    void flushLog().catch((err) => console.error("[better-images] failed to flush debug log on unload", err));
   }
 
   // Thin wrappers so the settings tab's "Maintenance" buttons can trigger the

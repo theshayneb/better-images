@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { baseName, joinPath, nfc, parentPath, pathsEqual } from "../../src/core/paths";
+import { baseName, joinPath, nfc, parentPath, pathsEqual } from "../../src/steward/core/paths";
 
 describe("joinPath", () => {
   it("joins non-empty segments with a single slash", () => {

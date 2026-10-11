@@ -1,10 +1,10 @@
 import { App, CachedMetadata, Modal, Notice, Plugin, Setting } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { adoptActiveNoteCommand, adoptFolderCommand, adoptVaultCommand } from "../../src/commands/adopt";
-import { InternalMoveTracker } from "../../src/engine/organizer";
-import { DEFAULT_SETTINGS, Settings } from "../../src/settings/types";
-import { Store } from "../../src/store/store";
-import { AttachmentRecord } from "../../src/store/types";
+import { adoptActiveNoteCommand, adoptFolderCommand, adoptVaultCommand } from "../../src/steward/commands/adopt";
+import { InternalMoveTracker } from "../../src/steward/engine/organizer";
+import { DEFAULT_SETTINGS, Settings } from "../../src/steward/settings/types";
+import { Store } from "../../src/steward/store/store";
+import { AttachmentRecord } from "../../src/steward/store/types";
 
 function settings(overrides: Partial<Settings> = {}): Settings {
   return {

@@ -10,11 +10,12 @@
     "allowSyntheticDefaultImports": true,
     "paths": {
       // Points type-checking at the same fake used at test runtime (aliased
-      // in vitest.config.mts) — the real "obsidian" package ships types for
-      // its full API, which test/mocks/obsidian.ts deliberately doesn't
+      // in vitest.steward.config.mts) — the real "obsidian" package ships types for
+      // its full API, which test-steward/mocks/obsidian.ts deliberately doesn't
       // match (see the comment at the top of that file).
-      "obsidian": ["test/mocks/obsidian.ts"]
+      "obsidian": ["test-steward/mocks/obsidian.ts"]
     }
   },
-  "include": ["**/*.ts", "../vitest.config.mts"]
+  "include": ["**/*.ts", "../vitest.steward.config.mts"],
+  "exclude": []
 }

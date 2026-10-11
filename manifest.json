@@ -1,11 +1,10 @@
 {
-  "id": "image-converter",
-  "name": "Image Converter",
-  "version": "1.4.6",
-  "minAppVersion": "0.15.0",
-  "description": "Convert, compress, resize, annotate, markup, draw, crop, rotate, flip, align images directly in Obsidian. Drag-resize, rename with variables, batch process. WEBP, JPG, PNG, HEIC, TIF.",
-  "author": "xRyul",
-  "authorUrl": "https://github.com/xryul",
-  "isDesktopOnly": false,
-  "fundingUrl": "https://ko-fi.com/xryul"
+  "id": "better-images",
+  "name": "Better Images & Attachments",
+  "version": "1.0.0",
+  "minAppVersion": "1.6.6",
+  "description": "Convert, compress, resize, crop, rotate, flip and annotate images, and keep every attachment organized in templated folders and filenames without breaking links. Combines Image Converter and Attachment Steward.",
+  "author": "theshayneb",
+  "authorUrl": "https://github.com/theshayneb",
+  "isDesktopOnly": false
 }

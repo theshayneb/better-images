@@ -227,7 +227,7 @@ describe('Settings defaults and persistence (11.1–11.2)', () => {
 
     const saveDataSpy = vi.spyOn(plugin as any, 'saveData').mockResolvedValue(undefined);
     await plugin.saveSettings();
-    expect(saveDataSpy).toHaveBeenCalledWith(plugin.settings);
+    expect(saveDataSpy).toHaveBeenCalledWith({ ...plugin.settings, attachmentSteward: null });
 
     // Simulate reload returning saved settings
     (plugin.loadData as any).mockResolvedValue(plugin.settings);
@@ -255,7 +255,26 @@ describe('Settings migration (11.8)', () => {
     await plugin.loadSettings();
 
     expect(plugin.settings.imageAlignmentCacheLocation).toBe('config');
-    expect(saveDataSpy).toHaveBeenCalledWith(plugin.settings);
+    expect(saveDataSpy).toHaveBeenCalledWith({ ...plugin.settings, attachmentSteward: null });
+  });
+});
+
+describe('Shared data.json with the attachment organizer', () => {
+  it('Given saved attachment settings, When loadSettings then saveSettings, Then they stay out of image settings and are written back unchanged', async () => {
+    const app = makeAppWithStorage();
+    const manifest = { id: 'better-images' } as any;
+    const plugin = new ImageConverterPlugin(app, manifest);
+    const attachmentSteward = { schema: 2, settings: { root: '_sources' } };
+
+    vi.spyOn(plugin as any, 'loadData').mockResolvedValue({ enableImageCaptions: true, attachmentSteward });
+    const saveDataSpy = vi.spyOn(plugin as any, 'saveData').mockResolvedValue(undefined);
+
+    await plugin.loadSettings();
+    expect(plugin.settings.enableImageCaptions).toBe(true);
+    expect('attachmentSteward' in plugin.settings).toBe(false);
+
+    await plugin.saveSettings();
+    expect(saveDataSpy).toHaveBeenCalledWith({ ...plugin.settings, attachmentSteward });
   });
 });
 

@@ -1,8 +1,8 @@
 import { App } from "obsidian";
 import { describe, expect, it } from "vitest";
-import { computeMd5, ensureRecordHash, hashMatchesCache } from "../../src/core/hash";
-import { DEFAULT_SETTINGS, Settings } from "../../src/settings/types";
-import { AttachmentRecord } from "../../src/store/types";
+import { computeMd5, ensureRecordHash, hashMatchesCache } from "../../src/steward/core/hash";
+import { DEFAULT_SETTINGS, Settings } from "../../src/steward/settings/types";
+import { AttachmentRecord } from "../../src/steward/store/types";
 
 function settings(overrides: Partial<Settings> = {}): Settings {
   return { ...DEFAULT_SETTINGS, extensionOverrides: [], ...overrides };

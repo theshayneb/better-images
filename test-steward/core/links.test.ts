@@ -1,7 +1,7 @@
 import { App, CachedMetadata } from "obsidian";
 import { describe, expect, it } from "vitest";
-import { allLinkedPaths, referencedAttachments } from "../../src/core/links";
-import { DEFAULT_SETTINGS, Settings } from "../../src/settings/types";
+import { allLinkedPaths, referencedAttachments } from "../../src/steward/core/links";
+import { DEFAULT_SETTINGS, Settings } from "../../src/steward/settings/types";
 
 function settings(overrides: Partial<Settings> = {}): Settings {
   return { ...DEFAULT_SETTINGS, ...overrides };

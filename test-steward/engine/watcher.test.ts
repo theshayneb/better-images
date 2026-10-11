@@ -1,8 +1,8 @@
 import { App, Plugin } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Watcher } from "../../src/engine/watcher";
-import { DEFAULT_SETTINGS, Settings } from "../../src/settings/types";
-import { Store } from "../../src/store/store";
+import { Watcher } from "../../src/steward/engine/watcher";
+import { DEFAULT_SETTINGS, Settings } from "../../src/steward/settings/types";
+import { Store } from "../../src/steward/store/store";
 
 function settings(overrides: Partial<Settings> = {}): Settings {
   return {

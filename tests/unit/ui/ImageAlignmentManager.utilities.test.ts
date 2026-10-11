@@ -218,7 +218,7 @@ describe('ImageAlignmentManager updateCacheFilePath (12.24)', () => {
     manager.updateCacheFilePath();
     
     // With 'config' setting, path uses configDir (here: .obsidian)
-    expect((manager as any).cacheFilePath).toBe('.obsidian/image-converter-image-alignments.json');
+    expect((manager as any).cacheFilePath).toBe('.obsidian/better-images-image-alignments.json');
   });
 
   it('12.24 updateCacheFilePath with custom configDir: uses custom configDir value', async () => {
@@ -237,7 +237,7 @@ describe('ImageAlignmentManager updateCacheFilePath (12.24)', () => {
     manager.updateCacheFilePath();
     
     // Path should use actual configDir value, not hardcoded .obsidian
-    expect((manager as any).cacheFilePath).toBe('.config/image-converter-image-alignments.json');
+    expect((manager as any).cacheFilePath).toBe('.config/better-images-image-alignments.json');
   });
 
   it('12.24 updateCacheFilePath with plugin location: uses pluginDir for cache path', async () => {
@@ -256,6 +256,6 @@ describe('ImageAlignmentManager updateCacheFilePath (12.24)', () => {
     manager.updateCacheFilePath();
     
     // With plugin location, path uses pluginDir
-    expect((manager as any).cacheFilePath).toBe('/plugins/image-converter/image-converter-image-alignments.json');
+    expect((manager as any).cacheFilePath).toBe('/plugins/image-converter/better-images-image-alignments.json');
   });
 });

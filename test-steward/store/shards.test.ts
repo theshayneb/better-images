@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { App, Plugin } from "obsidian";
-import { ensureAdapterFolder, ORPHANS_FILE, pluginDataDir, shardPath } from "../../src/store/shards";
+import { ensureAdapterFolder, ORPHANS_FILE, pluginDataDir, shardPath } from "../../src/steward/store/shards";
 
 function makePlugin(): Plugin {
   const app = new App();

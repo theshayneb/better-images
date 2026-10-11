@@ -1,5 +1,5 @@
 import type { App, TFile } from "obsidian";
-import * as SparkMD5 from "spark-md5";
+import SparkMD5 from "spark-md5";
 import { Settings } from "../settings/types";
 import { AttachmentRecord } from "../store/types";
 import { effectiveTemplates } from "./filters";

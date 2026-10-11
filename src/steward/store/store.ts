@@ -1,4 +1,4 @@
-import type { Plugin } from "obsidian";
+import type { StewardHost } from "../host";
 import { log } from "../log";
 import { DEFAULT_SETTINGS, ExcludedFolder, Settings } from "../settings/types";
 import { ensureAdapterFolder, pluginDataDir, RECORDS_DIR, shardPath } from "./shards";
@@ -51,7 +51,7 @@ export class Store {
   private saveTimer: number | null = null;
   private readonly dirtyShards = new Set<string | null>(); // notePath, or null for the orphans bucket
 
-  constructor(private readonly plugin: Plugin) {}
+  constructor(private readonly plugin: StewardHost) {}
 
   async load(): Promise<void> {
     const raw = (await this.plugin.loadData()) as (Partial<PluginData> & LegacyMonolithicData) | null;

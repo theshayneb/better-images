@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, parseDate, render, sanitize, TemplateContext } from "../../src/core/template";
+import { formatDate, parseDate, render, sanitize, TemplateContext } from "../../src/steward/core/template";
 
 function ctx(overrides: Partial<TemplateContext> = {}): TemplateContext {
   return {

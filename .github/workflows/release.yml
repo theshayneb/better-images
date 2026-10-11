@@ -1,0 +1,89 @@
+# Builds the plugin and publishes a GitHub release with main.js,
+# manifest.json and styles.css attached (what BRAT and Obsidian install).
+#
+# Start it either by pushing a tag named after the version (e.g. 1.0.1, no
+# "v" prefix), or from the Actions tab with "Run workflow" and the version,
+# in which case the workflow creates the tag on the current commit itself.
+# The version must match manifest.json and have an entry in CHANGELOG.md.
+
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - "*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 1.0.1 (must match manifest.json)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Work out the version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="$GITHUB_REF_NAME"
+          fi
+          MANIFEST_VERSION=$(node -p "require('./manifest.json').version")
+          if [ "$VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "::error::Version $VERSION does not match manifest.json ($MANIFEST_VERSION)"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no entry for [$VERSION]"
+            exit 1
+          fi
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: |
+          npm run build
+          cp build/main.js main.js
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$VERSION" \
+            --target "$GITHUB_SHA" \
+            --title "$VERSION" \
+            --notes-file release-notes.md \
+            main.js manifest.json styles.css
