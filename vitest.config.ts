@@ -9,11 +9,7 @@ export default defineConfig({
     setupFiles: ['./tests/helpers/test-setup.ts'],
     
     // Test file patterns
-    include: [
-      'tests/unit/**/*.test.ts',
-      'tests/integration/**/*.test.ts',
-      'tests/e2e/**/*.test.ts'
-    ],
+    include: ['tests/**/*.test.ts'],
     
     // Coverage configuration
     coverage: {

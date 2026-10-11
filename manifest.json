@@ -1,9 +1,9 @@
 {
   "id": "better-images",
   "name": "Better Images & Attachments",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "1.6.6",
-  "description": "Convert, compress, resize, crop, rotate, flip and annotate images, and keep every attachment organized in templated folders and filenames without breaking links. Combines Image Converter and Attachment Steward.",
+  "description": "Keeps attachments organized in templated folders and filenames without breaking links (Attachment Steward), and lets you crop, rotate and flip images from their right-click menu.",
   "author": "theshayneb",
   "authorUrl": "https://github.com/theshayneb",
   "isDesktopOnly": false

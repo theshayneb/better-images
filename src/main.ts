@@ -1,1427 +1,166 @@
-import {
-    Plugin,
-    Editor,
-    Platform,
-    Notice,
-    TFile,
-    TFolder,
-    EditorPosition,
-    MarkdownView
-} from "obsidian";
-import { SupportedImageFormats } from "./SupportedImageFormats";
-import { FolderAndFilenameManagement } from "./FolderAndFilenameManagement";
-import { ImageProcessor } from "./ImageProcessor";
-import { VariableProcessor } from "./VariableProcessor";
-import { LinkFormatPreset } from "./LinkFormatSettings";
-import { LinkFormatter } from "./LinkFormatter";
-import { NonDestructiveResizePreset } from "./NonDestructiveResizeSettings";
-import { ContextMenu } from "./ContextMenu";
-// import { ImageAlignment } from './ImageAlignment';
-import { ImageAlignmentManager } from './ImageAlignmentManager';
-import { ImageResizer } from "./ImageResizer";
-import { BatchImageProcessor } from "./BatchImageProcessor";
-import { ProcessSingleImageModal } from "./ProcessSingleImageModal";
-import { ProcessFolderModal } from "./ProcessFolderModal";
-import { ProcessCurrentNote } from "./ProcessCurrentNote";
-import { ProcessAllVaultModal } from "./ProcessAllVaultModal"
-import { ImageCaptionManager } from "./ImageCaptionManager"
-
-// Settings tab and all DEFAULTS
-import {
-    ImageConverterSettings,
-    DEFAULT_SETTINGS,
-    ConversionPreset,
-    FilenamePreset,
-    FolderPreset,
-    ConfirmDialog
-} from "./ImageConverterSettings";
-
-import { PresetSelectionModal } from "./PresetSelectionModal";
-import { BetterImagesSettingTab } from "./BetterImagesSettingTab";
+import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { Crop } from "./crop/Crop";
+import { imageLinkedAt, isEditableImage } from "./crop/imageLinks";
+import type { StewardHost } from "./steward/host";
+import { findAttachmentStewardFolder, importAttachmentSteward } from "./steward/import";
+import { pluginDataDir } from "./steward/store/shards";
 import { StewardModule } from "./steward/module";
 
-/** Key in data.json holding the attachment organizer's settings; everything else in the file is the image settings. */
+/** Key in data.json holding the attachment organizer's settings. */
 const ATTACHMENTS_DATA_KEY = "attachmentSteward";
 
-export default class ImageConverterPlugin extends Plugin {
-    settings!: ImageConverterSettings;
-    // Attachment organizer (formerly Attachment Steward)
+const DISABLE_STEWARD_HINT = "Turn off the Attachment Steward plugin so attachments aren't organized twice.";
+
+/**
+ * Attachment Steward's attachment organizer, plus a crop / rotate / flip
+ * editor (from Image Converter) for images, opened from their right-click menu.
+ */
+export default class BetterImagesPlugin extends Plugin {
     steward!: StewardModule;
     private stewardData: unknown = null;
-    settingTab!: BetterImagesSettingTab;
-
-    // Check supported image formats
-    supportedImageFormats!: SupportedImageFormats;
-    // Handle image management
-    folderAndFilenameManagement!: FolderAndFilenameManagement;
-    // Handle image processing
-    imageProcessor!: ImageProcessor;
-    // Handle variable processing
-    variableProcessor!: VariableProcessor;
-    // linkFormatSettings: LinkFormatSettings;     // Link format - it is initialised via ImageConverterSettings
-    // Link formatter
-    linkFormatter!: LinkFormatter;
-    // Context menu
-    contextMenu: ContextMenu | null = null;
-    // Alignment
-    // imageAlignment: ImageAlignment | null = null;
-    ImageAlignmentManager: ImageAlignmentManager | null = null;
-    // drag-resize
-    imageResizer: ImageResizer | null = null;
-    // batch processing
-    batchImageProcessor!: BatchImageProcessor;
-    // Single Image Modal
-    processSingleImageModal?: ProcessSingleImageModal;
-    // Process whole fodler
-    processFolderModal?: ProcessFolderModal;
-    // Processcurrent note/canvas
-    processCurrentNote?: ProcessCurrentNote;
-    // ProcessAllVault
-    processAllVaultModal?: ProcessAllVaultModal;
-    // captions
-    captionManager?: ImageCaptionManager;
-    
-    private processedImage: ArrayBuffer | null = null;
-    private temporaryBuffers: (ArrayBuffer | Blob | null)[] = [];
-
-    private updateBodyStateClasses() {
-        activeDocument.body.classList.toggle(
-            'image-converter-disable-native-image-selection',
-            this.settings.disableObsidianImageSelectionOnClick
-        );
-    }
-
-    private attachImageResizerToMarkdownView(markdownView: MarkdownView, refreshLayout = false) {
-        if (!this.settings.isImageResizeEnbaled || !this.imageResizer) return;
-
-        if (refreshLayout) {
-            this.imageResizer.onLayoutChange(markdownView);
-            return;
-        }
-
-        this.imageResizer.onActiveViewChange(markdownView);
-    }
-
-    private attachImageResizerToActiveView(refreshLayout = false) {
-        if (!this.settings.isImageResizeEnbaled || !this.imageResizer) return;
-
-        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (activeView) {
-            this.attachImageResizerToMarkdownView(activeView, refreshLayout);
-            return;
-        }
-
-        this.imageResizer.detachView();
-    }
-
-    private registerImageResizerWorkspaceEvents() {
-        if (!this.settings.isImageResizeEnbaled) return;
-
-        this.registerEvent(
-            this.app.workspace.on('file-open', (file) => {
-                if (!file) {
-                    this.imageResizer?.detachView();
-                    return;
-                }
-
-                this.attachImageResizerToActiveView();
-            })
-        );
-
-        this.registerEvent(
-            this.app.workspace.on('active-leaf-change', (leaf: { view?: unknown } | null) => {
-                const markdownView = leaf?.view instanceof MarkdownView
-                    ? leaf.view
-                    : this.app.workspace.getActiveViewOfType(MarkdownView);
-
-                if (markdownView) {
-                    this.attachImageResizerToMarkdownView(markdownView);
-                    return;
-                }
-
-                this.imageResizer?.detachView();
-            })
-        );
-    }
+    private settingTab!: BetterImagesSettingTab;
 
     async onload() {
-        await this.loadSettings();
-        this.updateBodyStateClasses();
+        const saved = (await this.loadData()) as Record<string, unknown> | null;
+        this.stewardData = saved?.[ATTACHMENTS_DATA_KEY] ?? null;
 
-        this.steward = new StewardModule(this, {
+        const host: StewardHost = {
             app: this.app,
             manifest: this.manifest,
             loadData: () => Promise.resolve(this.stewardData),
             saveData: async (data: unknown) => {
                 this.stewardData = data;
-                await this.saveAllData();
+                await this.saveData({ [ATTACHMENTS_DATA_KEY]: data });
             },
-        });
+        };
+
+        // First run: take over the stand-alone Attachment Steward's settings and records.
+        if (this.stewardData === null) {
+            await this.importFromAttachmentSteward(host, false);
+        }
+
+        this.steward = new StewardModule(this, host);
         await this.steward.load();
 
-        this.settingTab = new BetterImagesSettingTab(this.app, this);
+        this.settingTab = new BetterImagesSettingTab(this.app, this, host);
         this.addSettingTab(this.settingTab);
-        this.steward.onExternalSettingsChange = () => this.settingTab.refreshAttachments();
+        this.steward.onExternalSettingsChange = () => {
+            if (this.settingTab.containerEl.isShown()) this.settingTab.display();
+        };
 
-        // Initialize core components immediately
-        this.supportedImageFormats = new SupportedImageFormats(this.app);
-
-        // Captions are time-sensitive
-        if (this.settings.enableImageCaptions) {
-            this.captionManager = new ImageCaptionManager(this);
-            this.register(() => this.captionManager?.cleanup());
-        }
-
-
-        // Initialize ImageAlignment early since it's time-sensitive
-        if (this.settings.isImageAlignmentEnabled) {
-            this.ImageAlignmentManager = new ImageAlignmentManager(
-                this.app,
-                this,
-                this.supportedImageFormats,
-            );
-            await this.ImageAlignmentManager.initialize();
-
-            // This helps when opening into note with alignments set and fires less often than e.g. active-leaf-change
-            this.registerEvent(
-                this.app.workspace.on('file-open', (file) => {
-                    if (file) {
-                        this.ImageAlignmentManager?.applyAlignmentsToNote(file.path)
-                            .catch((err) => {
-                                const errorMessage = err instanceof Error ? err.message : String(err);
-                                console.error('Failed to apply alignments on file-open:', errorMessage);
-                            });
-
-                        if (this.settings.enableImageCaptions) {
-                            this.captionManager?.refresh();
-                        }
-                    }
-                })
-            );
-        }
-
-
-
-        // Wait for layout to be ready before initializing view-dependent components
-        this.app.workspace.onLayoutReady(() => {
-            this.initializeComponents().catch((err) => {
-                console.error('Failed to initialize components:', err);
-                //eslint-disable-next-line
-                new Notice('Better Images & Attachments: failed to initialize. Check console for details.');
-            });
-
-            this.registerImageResizerWorkspaceEvents();
-
-            // Apply Image Alignment and Resizing when switching Live to Reading mode etc.
-            if (this.settings.isImageAlignmentEnabled || this.settings.isImageResizeEnbaled) {
-                this.registerEvent(
-                    this.app.workspace.on('layout-change', () => {
-                        if (this.settings.isImageAlignmentEnabled) {
-                            const currentFile = this.app.workspace.getActiveFile();
-                            if (currentFile) {
-                                this.ImageAlignmentManager?.applyAlignmentsToNote(currentFile.path)
-                                    .catch((err) => {
-                                        const errorMessage = err instanceof Error ? err.message : String(err);
-                                        console.error('Failed to apply alignments on layout-change:', errorMessage);
-                                    });
-                            }
-                        }
-
-                        if (this.settings.isImageResizeEnbaled) {
-                            this.attachImageResizerToActiveView(true);
-                        }
-
-                        if (this.settings.enableImageCaptions) {
-                            this.captionManager?.refresh();
-                        }
-                        
-                    })
-                );
-            }
-            
-            // // Prevent link from showing up
-            // const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-            // if (!activeView) return;
-
-            // this.registerDomEvent(activeView.contentEl, 'click', (evt: MouseEvent) => {
-            //     const target = evt.target as HTMLElement;
-            //     if (target.tagName === 'IMG') {
-            //         evt.preventDefault();
-            //         evt.stopPropagation();
-            //     }
-            // }, true);
-
-        });
+        this.registerImageEditing();
     }
 
-    async initializeComponents() {
+    onunload() {
+        this.steward?.unload();
+    }
 
-        // Initialize base components first
-        this.variableProcessor = new VariableProcessor(this.app, this.settings);
-        this.linkFormatter = new LinkFormatter(this.app);
-        this.imageProcessor = new ImageProcessor(this.supportedImageFormats);
-
-        if (this.settings.isImageResizeEnbaled) {
-            this.imageResizer = new ImageResizer(this);
-            this.addChild(this.imageResizer);
-            this.attachImageResizerToActiveView();
+    /**
+     * Copies Attachment Steward's settings and records into this plugin.
+     * Returns whether anything was imported. With `explicit`, reports when
+     * nothing was found; otherwise stays quiet in that case.
+     */
+    async importFromAttachmentSteward(host: StewardHost, explicit: boolean): Promise<boolean> {
+        try {
+            const source = await findAttachmentStewardFolder(this.app, pluginDataDir(host));
+            if (!source) {
+                // eslint-disable-next-line obsidianmd/ui/sentence-case -- Attachment Steward is a plugin name
+                if (explicit) new Notice("No Attachment Steward settings found in this vault.");
+                return false;
+            }
+            const { data, records } = await importAttachmentSteward(host, source);
+            await host.saveData(data);
+            new Notice(`Imported Attachment Steward settings and ${records} record file(s). ${DISABLE_STEWARD_HINT}`, 10000);
+            return true;
+        } catch (err) {
+            console.error("[better-images] failed to import Attachment Steward settings", err);
+            // eslint-disable-next-line obsidianmd/ui/sentence-case -- Attachment Steward is a plugin name
+            new Notice("Couldn't import Attachment Steward settings. See the developer console for details.");
+            return false;
         }
+    }
 
-        // Initialize components that depend on others
-        this.folderAndFilenameManagement = new FolderAndFilenameManagement(
-            this.app,
-            this.settings,
-            this.supportedImageFormats,
-            this.variableProcessor
-        );
+    private openCrop(file: Parameters<typeof isEditableImage>[0]) {
+        if (isEditableImage(file)) new Crop(this.app, file).open();
+    }
 
-        this.batchImageProcessor = new BatchImageProcessor(
-            this.app,
-            this,
-            this.imageProcessor,
-            this.folderAndFilenameManagement
-        );
-
-        // Initialize context menu if enabled
-        if (this.settings.enableContextMenu) {
-            this.contextMenu = new ContextMenu(
-                this.app,
-                this,
-                this.folderAndFilenameManagement,
-                this.variableProcessor
-            );
-            this.addChild(this.contextMenu);
-        }
-
-        // REDUNDANT as it is already initialized inside ImageConverterSettings %%Initialize NonDestructiveResizeSettings if needed%%
-        // if (!this.settings.nonDestructiveResizeSettings) {
-        //     this.settings.nonDestructiveResizeSettings = new NonDestructiveResizeSettings();
-        // }
-
-        // Register PASTE/DROP events
-        this.dropPasteRegisterEvents();
-
-        // Register file menu events
+    private registerImageEditing() {
+        // Images in the file list, and embedded images in notes (Obsidian
+        // shows the same file menu when you right-click those).
         this.registerEvent(
             this.app.workspace.on("file-menu", (menu, file) => {
-                if (file instanceof TFile && this.supportedImageFormats.isSupported(undefined, file.name)) {
-                    menu.addItem((item) => {
-                        item.setTitle("Process image")
-                            .setIcon("cog")
-                            .onClick(() => {
-                                new ProcessSingleImageModal(this.app, this, file).open();
-                            });
-                    });
-                } else if (file instanceof TFolder) {
-                    menu.addItem((item) => {
-                        // eslint-disable-next-line obsidianmd/ui/sentence-case
-                        item.setTitle("Process all images in Folder")
-                            .setIcon("cog")
-                            .onClick(() => {
-                                new ProcessFolderModal(this.app, this, file.path, this.batchImageProcessor).open();
-                            });
-                    });
-                } else if (file instanceof TFile && (file.extension === 'md' || file.extension === 'canvas')) {
-                    menu.addItem((item) => {
-                        item.setTitle(`Process all images in ${file.extension === 'md' ? 'note' : 'canvas'}`)
-                            .setIcon("cog")
-                            .onClick(() => {
-                                new ProcessCurrentNote(this.app, this, file, this.batchImageProcessor).open();
-                            });
-                    });
-                }
+                if (!isEditableImage(file)) return;
+                menu.addItem((item) =>
+                    item.setTitle("Crop, rotate or flip").setIcon("crop").onClick(() => this.openCrop(file))
+                );
             })
         );
 
-        // Register commands
-        this.addCommand({
-            id: 'process-all-vault-images',
-            name: 'Process all vault images',
-            callback: () => {
-                new ProcessAllVaultModal(this.app, this, this.batchImageProcessor).open();
-            }
-        });
+        // Right-clicking an image link in the editor.
+        this.registerEvent(
+            this.app.workspace.on("editor-menu", (menu, editor, info) => {
+                if (!info.file) return;
+                const cursor = editor.getCursor();
+                const image = imageLinkedAt(this.app, editor.getLine(cursor.line), cursor.ch, info.file.path);
+                if (!image) return;
+                menu.addItem((item) =>
+                    item.setTitle("Crop, rotate or flip image").setIcon("crop").onClick(() => this.openCrop(image))
+                );
+            })
+        );
 
         this.addCommand({
-            id: 'process-all-images-current-note',
-            name: 'Process all images in current note',
-            callback: () => {
-                const activeFile = this.app.workspace.getActiveFile();
-                if (activeFile) {
-                    new ProcessCurrentNote(this.app, this, activeFile, this.batchImageProcessor).open();
-                } else {
-                    new Notice('No active file detected');
-                }
-            }
-        });
-
-        this.addCommand({
-            id: 'open-settings',
-            name: 'Open settings',
-            callback: () => this.commandOpenSettingsTab()
-        });
-
-        this.addReloadCommand();
-    }
-
-
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
-    async onunload() {
-        this.steward?.unload();
-
-        // Clean up alignment related components first
-        if (this.ImageAlignmentManager) {
-            this.ImageAlignmentManager.onunload();
-            this.ImageAlignmentManager = null;
-        }
-
-        if (this.imageResizer) {
-            const { imageResizer } = this;
-            this.imageResizer = null;
-            this.removeChild(imageResizer);
-        }
-
-        // Clean up UI components registered as child components so their registerDomEvent() disposers run now.
-        if (this.contextMenu) {
-            const { contextMenu } = this;
-            this.contextMenu = null;
-            this.removeChild(contextMenu);
-        }
-
-        // Clean up any open modals
-        [
-            this.processSingleImageModal,
-            this.processFolderModal,
-            this.processCurrentNote,
-            this.processAllVaultModal
-        ].forEach(modal => {
-            if (modal?.close) modal.close();
-        });
-
-        this.processSingleImageModal = undefined;
-        this.processFolderModal = undefined;
-        this.processCurrentNote = undefined;
-        this.processAllVaultModal = undefined;
-
-        if (this.captionManager) {
-            this.captionManager.cleanup();
-            this.captionManager = undefined;
-        }
-
-        activeDocument.body.classList.remove('image-captions-enabled');
-        activeDocument.body.classList.remove('image-converter-disable-native-image-selection');
-    }
-
-
-    // Load settings method
-    async loadSettings() {
-        const loadedData = (await this.loadData()) as (Partial<ImageConverterSettings> & { [ATTACHMENTS_DATA_KEY]?: unknown }) | null;
-        const { [ATTACHMENTS_DATA_KEY]: stewardData, ...imageSettings } = loadedData ?? {};
-        this.stewardData = stewardData ?? null;
-        const loadedSettings: Partial<ImageConverterSettings> | null = loadedData ? imageSettings : null;
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedSettings ?? {}) as ImageConverterSettings;
-
-        const isFreshInstall = !loadedSettings || Object.keys(loadedSettings).length === 0;
-        if (isFreshInstall) {
-            const defaultGlobalPreset = this.settings.globalPresets.find((preset) => preset.name === "WebP 75");
-            if (defaultGlobalPreset) {
-                this.settings.selectedGlobalPreset = defaultGlobalPreset.name;
-                this.settings.selectedFolderPreset = defaultGlobalPreset.folderPreset;
-                this.settings.selectedFilenamePreset = defaultGlobalPreset.filenamePreset;
-                this.settings.selectedConversionPreset = defaultGlobalPreset.conversionPreset;
-                this.settings.linkFormatSettings.selectedLinkFormatPreset = defaultGlobalPreset.linkFormatPreset;
-                this.settings.nonDestructiveResizeSettings.selectedResizePreset = defaultGlobalPreset.resizePreset;
-            }
-        }
-
-        // eslint-disable-next-line obsidianmd/hardcoded-config-path -- legacy stored value for migration
-        const legacyCacheLocation = ".obsidian";
-        if ((this.settings.imageAlignmentCacheLocation as string) === legacyCacheLocation) {
-            this.settings.imageAlignmentCacheLocation = "config";
-            await this.saveSettings();
-        }
-    }
-
-    // Save settings method
-    async saveSettings() {
-        await this.saveAllData();
-        this.updateBodyStateClasses();
-    }
-
-    // Image settings and the attachment organizer's settings share data.json.
-    private async saveAllData() {
-        await this.saveData({ ...this.settings, [ATTACHMENTS_DATA_KEY]: this.stewardData });
-    }
-
-    // Command to open settings tab
-    async commandOpenSettingsTab() {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access -- Obsidian internal API
-        const setting = (this.app as any).setting as { open: () => Promise<void>; openTabById: (id: string) => void } | undefined;
-        if (setting) {
-            await setting.open();
-            setting.openTabById(this.manifest.id);
-        } else {
-            new Notice('Unable to open settings. Please check if the settings plugin is enabled.');
-        }
-    }
-
-    addReloadCommand() {
-
-        this.addCommand({
-            id: 'reload-plugin',
-            name: 'Reload plugin',
-            callback: async () => {
-                // eslint-disable-next-line obsidianmd/ui/sentence-case
-                new Notice('Reloading Better Images & Attachments...');
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access -- Obsidian internal API
-                const plugins = (this.app as any).plugins as { disablePlugin: (id: string) => Promise<void>; enablePlugin: (id: string) => Promise<void> } | undefined;
-
-                try {
-                    // 1. Disable the plugin
-                    if (plugins?.disablePlugin) {
-                        await plugins.disablePlugin(this.manifest.id);
-                    } else {
-                        console.error("Plugins API is not accessible.");
-                        new Notice('Failed to reload: plugins API unavailable');
-                        return;
-                    }
-
-                    // add some delay as disabling takes some time.
-                    await new Promise(resolve => window.setTimeout(resolve, 500)); // even 100ms would be enough.
-
-                    // 2. Re-enable the plugin
-                    if (plugins?.enablePlugin) {
-                        await plugins.enablePlugin(this.manifest.id);
-                    } else {
-                        console.error("Plugins API is not accessible.");
-                        new Notice('Failed to reload: plugins API unavailable');
-                        return;
-                    }
-
-                    // eslint-disable-next-line obsidianmd/ui/sentence-case
-                    new Notice('Better Images & Attachments reloaded!');
-                } catch (error) {
-                    console.error("Error reloading plugin:", error);
-                    new Notice('Failed to reload plugin, see console');
-                }
+            id: "crop-rotate-flip-image",
+            name: "Crop, rotate or flip image",
+            checkCallback: (checking) => {
+                const image = this.currentImage();
+                if (!image) return false;
+                if (!checking) this.openCrop(image);
+                return true;
             },
         });
     }
 
-    private validateAttachmentPath(vaultPath: string): boolean {
-        const violation = this.folderAndFilenameManagement.getWindowsPathLengthViolation(vaultPath);
-        if (!violation) {
-            return true;
-        }
-        new Notice(
-            `Image not added: the destination path is too long for Windows (${violation.length} characters). Paths must be shorter than ${violation.limit} characters. Shorten the destination folder or filename.\n${violation.absolutePath}`,
-            15000
-        );
-        return false;
+    /** The open image file, or the image linked under the cursor in the active note. */
+    private currentImage() {
+        const active = this.app.workspace.getActiveFile();
+        if (isEditableImage(active)) return active;
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view?.file) return null;
+        const cursor = view.editor.getCursor();
+        return imageLinkedAt(this.app, view.editor.getLine(cursor.line), cursor.ch, view.file.path);
+    }
+}
+
+class BetterImagesSettingTab extends PluginSettingTab {
+    constructor(app: App, private readonly plugin: BetterImagesPlugin, private readonly host: StewardHost) {
+        super(app, plugin);
     }
 
-    private dropPasteRegisterEvents() {
-        // On mobile DROP events are not supported, but lets still check as a precaution
-        if (Platform.isMobile) return;
+    display(): void {
+        const { containerEl } = this;
+        containerEl.empty();
 
-        // Drop event (Obsidian editor - primary handlers)
-        this.registerEvent(
-            this.app.workspace.on("editor-drop", async (evt: DragEvent, editor: Editor) => {
-                if (evt.defaultPrevented) return;
-
-                if (!evt.dataTransfer) {
-                    console.warn("DataTransfer object is null initially. Cannot process drop event.");
-                    return;
-                }
-
-                // Get the actual drop position from the mouse event
-                const pos = editor.posAtMouse(evt);
-                if (!pos) {
-                    console.warn("Could not determine drop position");
-                    return;
-                }
-
-                const fileData: { name: string, type: string, file: File }[] = [];
-                for (let i = 0; i < evt.dataTransfer.files.length; i++) {
-                    const file = evt.dataTransfer.files[i];
-                    fileData.push({ name: file.name, type: file.type, file });
-                }
-
-                // Check if we should process these files
-                const hasSupportedFiles = fileData.some(data =>
-                    this.supportedImageFormats.isSupported(data.type, data.name) &&
-                    !this.folderAndFilenameManagement.matchesPatterns(data.name, this.settings.neverProcessFilenames)
-                );
-
-                if (hasSupportedFiles) {
-                    evt.preventDefault(); // Prevent default behavior
-
-                    // We don't need setTimeout anymore since we're using the drop position
-                    await this.handleDrop(fileData, editor, evt, pos);
-                }
-            })
-        );
-
-        // --- Paste event handler ---
-        this.registerEvent(
-            this.app.workspace.on("editor-paste", async (evt: ClipboardEvent, editor: Editor) => {
-                if (evt.defaultPrevented) return;
-
-                if (!evt.clipboardData) {
-                    console.warn("ClipboardData object is null. Cannot process paste event.");
-                    return;
-                }
-
-                const cursor = editor.getCursor();
-
-                // Extract Clipboard Item Information
-                const itemData: { kind: string, type: string, file: File | null }[] = [];
-                for (let i = 0; i < evt.clipboardData.items.length; i++) {
-                    const item = evt.clipboardData.items[i];
-                    const file = item.kind === "file" ? item.getAsFile() : null;
-                    itemData.push({ kind: item.kind, type: item.type, file });
-                }
-
-                // Check if we should process these items
-                const hasSupportedItems = itemData.some(data =>
-                    data.kind === "file" &&
-                    data.file &&
-                    this.supportedImageFormats.isSupported(data.type, data.file.name) &&
-                    !this.folderAndFilenameManagement.matchesPatterns(data.file.name, this.settings.neverProcessFilenames)
-                );
-
-                if (hasSupportedItems) {
-                    evt.preventDefault();
-                    await this.handlePaste(itemData, editor, cursor);
-                }
-            })
-        );
-    }
-
-    private async handleDrop(fileData: { name: string; type: string; file: File }[], editor: Editor, evt: DragEvent, cursor: EditorPosition) {
-
-        // Step 1: Filter Supported Files
-        // - Filter the incoming `fileData` to keep only the files that are supported by the plugin (using `isSupported`).
-        const supportedFiles = fileData
-            .filter(data => {
-                // console.log(`Dropped file: ${data.name}, file.type: ${data.type}`);
-                return this.supportedImageFormats.isSupported(data.type, data.name)
-            })
-            .map(data => data.file);
-
-        // Step 2: Check for Active File
-        // - Return early if no supported files are found or if there's no active file in the Obsidian workspace.
-        if (supportedFiles.length === 0) return;
-
-        const activeFile = this.app.workspace.getActiveFile();
-        if (!activeFile) {
-            new Notice('No active file detected');
-            return;
-        }
-
-        // Step 3: Map Files to Processing Promises
-        // - Create an array of promises, each responsible for processing one file.
-        // - This allows for sequential processing, avoiding concurrency issues.
-        const filePromises = supportedFiles.map(async (file) => {
-            try {
-                // Check modal behavior setting
-                const { modalBehavior } = this.settings;
-                let showModal = modalBehavior === "always";
-
-                if (modalBehavior === "ask") {
-                    showModal = await new Promise<boolean>((resolve) => {
-                        new ConfirmDialog(
-                            this.app,
-                            "Show Preset Selection Modal?",
-                            "Do you want to select presets for this image?",
-                            "Yes",
-                            () => resolve(true)
-                        ).open();
-                    });
-                }
-
-                let selectedConversionPreset: ConversionPreset;
-                let selectedFilenamePreset: FilenamePreset;
-                let selectedFolderPreset: FolderPreset;
-                let selectedLinkFormatPreset: LinkFormatPreset;
-                let selectedResizePreset: NonDestructiveResizePreset;
-
-                if (showModal) {
-                    // Show the modal and wait for user selection
-                    ({
-                        selectedConversionPreset,
-                        selectedFilenamePreset,
-                        selectedFolderPreset,
-                        selectedLinkFormatPreset,
-                        selectedResizePreset
-                    } = await new Promise<{
-                        selectedConversionPreset: ConversionPreset;
-                        selectedFilenamePreset: FilenamePreset;
-                        selectedFolderPreset: FolderPreset;
-                        selectedLinkFormatPreset: LinkFormatPreset;
-                        selectedResizePreset: NonDestructiveResizePreset;
-                    }>((resolve) => {
-                        new PresetSelectionModal(
-                            this.app,
-                            this.settings,
-                            (conversionPreset, filenamePreset, folderPreset, linkFormatPreset, resizePreset) => {
-                                resolve({
-                                    selectedConversionPreset: conversionPreset,
-                                    selectedFilenamePreset: filenamePreset,
-                                    selectedFolderPreset: folderPreset,
-                                    selectedLinkFormatPreset: linkFormatPreset,
-                                    selectedResizePreset: resizePreset,
-                                });
-                            },
-                            this,
-                            this.variableProcessor
-                        ).open();
-                    }));
-                } else {
-                    // Use default presets from settings using the generic getter
-                    selectedConversionPreset = this.getPresetByName(
-                        this.settings.selectedConversionPreset,
-                        this.settings.conversionPresets,
-                        'Conversion'
-                    );
-
-                    selectedFilenamePreset = this.getPresetByName(
-                        this.settings.selectedFilenamePreset,
-                        this.settings.filenamePresets,
-                        'Filename'
-                    );
-
-                    selectedFolderPreset = this.getPresetByName(
-                        this.settings.selectedFolderPreset,
-                        this.settings.folderPresets,
-                        'Folder'
-                    );
-
-                    selectedLinkFormatPreset = this.getPresetByName(
-                        this.settings.linkFormatSettings.selectedLinkFormatPreset,
-                        this.settings.linkFormatSettings.linkFormatPresets,
-                        'Link Format'
-                    );
-
-                    selectedResizePreset = this.getPresetByName(
-                        this.settings.nonDestructiveResizeSettings.selectedResizePreset,
-                        this.settings.nonDestructiveResizeSettings.resizePresets,
-                        'Resize'
-                    );
-                }
-
-                // Step 3.2: Determine Destination and Filename
-                // - Use the `determineDestination` function to calculate the destination path and new filename for the current file.
-                let destinationPath: string;
-                let newFilename: string;
-
-                try {
-                    ({ destinationPath, newFilename } = await this.folderAndFilenameManagement.determineDestination(
-                        file,
-                        activeFile,
-                        selectedConversionPreset,
-                        selectedFilenamePreset,
-                        selectedFolderPreset
-                    ));
-                } catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : String(error);
-                    console.error("Error determining destination and filename:", errorMessage);
-                    new Notice(`Failed to determine destination or filename for "${file.name}". Check console for details.`);
-                    return; // Resolve this promise (no further processing for this file)
-                }
-
-                // Step 3.3: Handle Filename Conflicts
-                // - Check if a file with the same name already exists at the destination.
-                // - Apply conflict resolution rules based on the selected filename preset (e.g., increment, reuse, or skip).
-                const fullPath = `${destinationPath}/${newFilename}`;
-                let existingFile = this.app.vault.getAbstractFileByPath(fullPath);
-                let skipFurtherProcessing = false;
-
-                if (selectedFilenamePreset && this.folderAndFilenameManagement.shouldSkipRename(file.name, selectedFilenamePreset)) {
-                    new Notice(
-                        `Skipped renaming/conversion of image "${file.name}" due to skip pattern match.`
-                    );
-                    skipFurtherProcessing = true;
-                } else if (selectedFilenamePreset && selectedFilenamePreset.conflictResolution === "increment") {
-                    try {
-                        newFilename = await this.folderAndFilenameManagement.handleNameConflicts(
-                            destinationPath,
-                            newFilename,
-                            "increment"
-                        );
-                        existingFile = this.app.vault.getAbstractFileByPath(
-                            `${destinationPath}/${newFilename}`
-                        );
-                    } catch (error) {
-                        const errorMessage = error instanceof Error ? error.message : String(error);
-                        console.error("Error handling filename conflicts:", errorMessage);
-                        new Notice(`Error incrementing filename for "${file.name}". Check console for details.`);
-                        return; // Resolve this promise
+        new Setting(containerEl)
+            // eslint-disable-next-line obsidianmd/ui/sentence-case -- Attachment Steward is a plugin name
+            .setName("Import from Attachment Steward")
+            .setDesc(
+                // eslint-disable-next-line obsidianmd/ui/sentence-case -- Attachment Steward is a plugin name
+                "Copies the settings and attachment records of the Attachment Steward plugin installed in this vault, replacing the ones below. This happens automatically the first time this plugin runs."
+            )
+            .addButton((button) =>
+                button.setButtonText("Import").onClick(async () => {
+                    button.setDisabled(true);
+                    // Flush pending writes first so they can't land on top of the imported records.
+                    await this.plugin.steward.store.saveNow();
+                    if (await this.plugin.importFromAttachmentSteward(this.host, true)) {
+                        await this.plugin.steward.store.load();
+                        this.plugin.steward.applyLogging();
                     }
-                }
-
-                const newFullPath = this.folderAndFilenameManagement.combinePath(destinationPath, newFilename);
-
-                // Step 3.4: Reject unsafe paths before creating folders or writing the image.
-                if (!this.validateAttachmentPath(newFullPath)) {
-                    return;
-                }
-
-                try {
-                    await this.folderAndFilenameManagement.ensureFolderExists(destinationPath);
-                } catch (error) {
-                    // Ignore "Folder already exists" error, but handle other errors.
-                    const errorMessage = error instanceof Error ? error.message : String(error);
-                    if (!errorMessage.startsWith('Folder already exists')) {
-                        console.error("Error creating folder:", errorMessage);
-                        new Notice(`Failed to create folder "${destinationPath}". Check console for details.`);
-                        return; // Resolve this promise
-                    }
-                }
-
-                // Step 3.5: Process, Reuse, or Skip
-                if (!skipFurtherProcessing) {
-
-                    // Step 3.5.1: Reuse Existing File (if applicable)
-                    // - If a file exists and the preset is set to "reuse," insert a link to the existing file and skip processing.
-                    if (existingFile && selectedFilenamePreset && selectedFilenamePreset.conflictResolution === "reuse") {
-                        try {
-                            await this.insertLinkAtCursorPosition(editor, existingFile.path, cursor, selectedLinkFormatPreset, selectedResizePreset);
-                        } catch (error) {
-                            const errorMessage = error instanceof Error ? error.message : String(error);
-                            console.error("Failed to insert link for reused file:", errorMessage);
-                            new Notice(`Failed to insert link for "${existingFile.name}". Check console for details.`);
-                        }
-                        return; // Resolve this promise
-                    }
-
-
-                    // Step 3.5.2: Check for Skipped Conversion BEFORE Processing
-                    // - Check if the current file matches a skip pattern defined in the selected conversion preset.
-                    // - If it matches, skip the image processing step entirely.
-                    if (selectedConversionPreset && this.folderAndFilenameManagement.shouldSkipConversion(file.name, selectedConversionPreset)) {
-                        new Notice(`Skipped conversion of image "${file.name}" due to skip pattern match in the conversion preset.`);
-
-
-                        // Save the original file directly to the vault without any processing.
-                        // const originalSize = file.size;
-                        const fileBuffer = await file.arrayBuffer();
-                        // Vault.createBinary returns a TFile or throws on failure (no null result).
-                        const tfile = await this.app.vault.createBinary(newFullPath, fileBuffer);
-
-                        // Insert a link to the newly created (but unprocessed) file.
-                        try {
-                            await this.insertLinkAtCursorPosition(editor, tfile.path, cursor, selectedLinkFormatPreset, selectedResizePreset);
-                        } catch (error) {
-                            const errorMessage = error instanceof Error ? error.message : String(error);
-                            console.error("Failed to insert link for skipped conversion:", errorMessage);
-                            new Notice(`Failed to insert link for "${file.name}". Check console for details.`);
-                        }
-
-                    } else {
-                        // Step 3.5.3: Process the Image (ONLY if not skipped)
-                        // - Call the `processImage` function to perform image conversion based on the selected preset or default settings.
-                        try {
-                            const originalSize = file.size;  // Store original size
-                            this.processedImage = await this.imageProcessor.processImage(
-                                file,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.outputFormat
-                                    : this.settings.outputFormat,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.quality / 100
-                                    : this.settings.quality / 100,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.colorDepth
-                                    : this.settings.colorDepth,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.resizeMode
-                                    : this.settings.resizeMode,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.desiredWidth
-                                    : this.settings.desiredWidth,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.desiredHeight
-                                    : this.settings.desiredHeight,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.desiredLongestEdge
-                                    : this.settings.desiredLongestEdge,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.enlargeOrReduce
-                                    : this.settings.enlargeOrReduce,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.allowLargerFiles
-                                    : this.settings.allowLargerFiles,
-                                selectedConversionPreset, // Pass preset to ImageProcessor
-                                this.settings
-                            );
-
-
-                            let tfile: TFile;
-
-                            // Step 3.5.4: Create the Image File in Vault
-                            // - Create the new image file in the Obsidian vault using `createBinary`.
-                            // Show space savings notification
-                            // Check if processed image is larger than original + minimum savings
-                            const minSavingsKB = (typeof (selectedConversionPreset?.minimumCompressionSavingsInKB ?? this.settings.minimumCompressionSavingsInKB) === 'number'
-                                && (selectedConversionPreset?.minimumCompressionSavingsInKB ?? this.settings.minimumCompressionSavingsInKB) >= 0)
-                                ? (selectedConversionPreset?.minimumCompressionSavingsInKB ?? this.settings.minimumCompressionSavingsInKB)
-                                : 30;
-                            const shouldRevertIfLarger = selectedConversionPreset?.revertToOriginalIfLarger
-                                ?? this.settings.revertToOriginalIfLarger;
-
-                            if (shouldRevertIfLarger && this.processedImage.byteLength + (minSavingsKB * 1024) > originalSize) {
-                                // User wants to revert AND processed image is larger
-                                this.showSizeComparisonNotification(originalSize, this.processedImage.byteLength);
-                                new Notice(`Using original image for "${file.name}" because size reduction was less than ${minSavingsKB} KB.`);
-
-                                const fileBuffer = await file.arrayBuffer();
-                                tfile = await this.app.vault.createBinary(newFullPath, fileBuffer);
-                            } else {
-                                // Processed image is smaller OR user doesn't want to revert
-                                this.showSizeComparisonNotification(originalSize, this.processedImage.byteLength);
-                                tfile = await this.app.vault.createBinary(newFullPath, this.processedImage);
-                            }
-
-                            // Step 3.5.5: Insert Link into Editor
-                            // - Insert the Markdown link to the newly created image file into the editor at the current cursor position.
-                            try {
-                                await this.insertLinkAtCursorPosition(editor, tfile.path, cursor, selectedLinkFormatPreset, selectedResizePreset);
-                            } catch (error) {
-                                const errorMessage = error instanceof Error ? error.message : String(error);
-                                console.error("Failed to insert link after processing:", errorMessage);
-                                new Notice(`Failed to insert link for "${file.name}". Check console for details.`);
-                            }
-                        } catch (error) {
-                            // Step 3.5.6: Handle Image Processing Errors
-                            // - Catch and display errors that occur during image processing.
-                            const errorMessage = error instanceof Error ? error.message : String(error);
-                            console.error("Image processing failed:", errorMessage);
-                            if (error instanceof Error) {
-                                if (error.message.includes("File already exists")) {
-                                    new Notice(`Failed to process image: File "${newFilename}" already exists.`);
-                                } else if (error.message.includes("Invalid input file type")) {
-                                    new Notice(`Failed to process image: Invalid input file type for "${file.name}".`);
-                                } else {
-                                    new Notice(`Failed to process image "${file.name}": ${error.message}. Check console for details.`);
-                                }
-                            } else {
-                                new Notice(`Failed to process image "${file.name}". Check console for details.`);
-                            }
-                            return; // Resolve this promise
-                        } finally {
-                            // Clear memory after processing
-                            this.clearMemory();
-                        }
-                    }
-                } else {
-                    // Step 3.6: Handle Skipped Processing
-                    // - If further processing is skipped due to filename conflict resolution, insert a link to an existing file (if applicable).
-                    if (existingFile) {
-                        try {
-                            await this.insertLinkAtCursorPosition(editor, existingFile.path, cursor, selectedLinkFormatPreset, selectedResizePreset);
-                        } catch (error) {
-                            const errorMessage = error instanceof Error ? error.message : String(error);
-                            console.error("Failed to insert link for skipped processing:", errorMessage);
-                            new Notice(`Failed to insert link for "${existingFile.name}". Check console for details.`);
-                        }
-                    }
-                }
-            } catch (error) {
-                // Step 3.7: Handle Unexpected Errors
-                // - Catch and display any other unexpected errors that might occur.
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                console.error("An unexpected error occurred:", errorMessage);
-                new Notice('An unexpected error occurred. Check console for details.');
-            }
-        });
-
-        // Step 4: Wait for All Promises to Complete
-        // - Use `Promise.all` to wait for all the file processing promises to settle (either fulfilled or rejected).
-        await Promise.all(filePromises);
-        
-        if (this.settings.enableImageCaptions) {
-            this.captionManager?.refresh();
-        }
-    }
-
-    private async handlePaste(itemData: { kind: string; type: string; file: File | null }[], editor: Editor, cursor: EditorPosition) {
-        // Step 1: Filter Supported Image Files
-        // - Filter the pasted `itemData` to keep only supported image files.
-        const supportedFiles = itemData
-            .filter(data => data.kind === "file" && data.file &&
-                this.supportedImageFormats.isSupported(data.type, data.file.name))
-            .map(data => data.file!)
-            .filter((file): file is File => file !== null);
-
-        // Step 2: Check for Active File
-        // - Return early if no supported files are found or if there's no active file.
-        if (supportedFiles.length === 0) return;
-
-        const activeFile = this.app.workspace.getActiveFile();
-        if (!activeFile) {
-            new Notice('No active file detected');
-            return;
-        }
-
-        // Step 3: Map Files to Processing Promises
-        // - Create an array of promises, each responsible for processing one pasted file.
-        const filePromises = supportedFiles.map(async (file) => {
-            // Check modal behavior setting
-            const { modalBehavior } = this.settings;
-            let showModal = modalBehavior === "always";
-
-            if (modalBehavior === "ask") {
-                showModal = await new Promise<boolean>((resolve) => {
-                    new ConfirmDialog(
-                        this.app,
-                        "Show Preset Selection Modal?",
-                        "Do you want to select presets for this image?",
-                        "Yes",
-                        () => resolve(true)
-                    ).open();
-                });
-            }
-
-            let selectedConversionPreset: ConversionPreset;
-            let selectedFilenamePreset: FilenamePreset;
-            let selectedFolderPreset: FolderPreset;
-            let selectedLinkFormatPreset: LinkFormatPreset;
-            let selectedResizePreset: NonDestructiveResizePreset;
-
-            if (showModal) {
-                // Show the modal and wait for user selection
-                ({
-                    selectedConversionPreset,
-                    selectedFilenamePreset,
-                    selectedFolderPreset,
-                    selectedLinkFormatPreset,
-                    selectedResizePreset
-                } = await new Promise<{
-                    selectedConversionPreset: ConversionPreset;
-                    selectedFilenamePreset: FilenamePreset;
-                    selectedFolderPreset: FolderPreset;
-                    selectedLinkFormatPreset: LinkFormatPreset;
-                    selectedResizePreset: NonDestructiveResizePreset;
-                }>((resolve) => {
-                    new PresetSelectionModal(
-                        this.app,
-                        this.settings,
-                        (conversionPreset, filenamePreset, folderPreset, linkFormatPreset, resizePreset) => {
-                            resolve({
-                                selectedConversionPreset: conversionPreset,
-                                selectedFilenamePreset: filenamePreset,
-                                selectedFolderPreset: folderPreset,
-                                selectedLinkFormatPreset: linkFormatPreset,
-                                selectedResizePreset: resizePreset,
-                            });
-                        },
-                        this,
-                        this.variableProcessor
-                    ).open();
-                }));
-            } else {
-                // Use default presets from settings using the generic getter
-                selectedConversionPreset = this.getPresetByName(
-                    this.settings.selectedConversionPreset,
-                    this.settings.conversionPresets,
-                    'Conversion'
-                );
-
-                selectedFilenamePreset = this.getPresetByName(
-                    this.settings.selectedFilenamePreset,
-                    this.settings.filenamePresets,
-                    'Filename'
-                );
-
-                selectedFolderPreset = this.getPresetByName(
-                    this.settings.selectedFolderPreset,
-                    this.settings.folderPresets,
-                    'Folder'
-                );
-
-                selectedLinkFormatPreset = this.getPresetByName(
-                    this.settings.linkFormatSettings.selectedLinkFormatPreset,
-                    this.settings.linkFormatSettings.linkFormatPresets,
-                    'Link Format'
-                );
-
-                selectedResizePreset = this.getPresetByName(
-                    this.settings.nonDestructiveResizeSettings.selectedResizePreset,
-                    this.settings.nonDestructiveResizeSettings.resizePresets,
-                    'Resize'
-                );
-            }
-            // Step 3.2: Determine Destination and Filename
-            // - Calculate the destination path and new filename for the current file.
-            try {
-                let destinationPath: string;
-                let newFilename: string;
-
-                try {
-                    ({ destinationPath, newFilename } = await this.folderAndFilenameManagement.determineDestination(
-                        file,
-                        activeFile,
-                        selectedConversionPreset,
-                        selectedFilenamePreset,
-                        selectedFolderPreset
-                    ));
-                } catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : String(error);
-                    console.error("Error determining destination and filename:", errorMessage);
-                    new Notice(`Failed to determine destination or filename for "${file.name}". Check console for details.`);
-                    return; // Resolve this promise
-                }
-
-                // Step 3.3: Handle Filename Conflicts
-                // - Check for filename conflicts and apply conflict resolution rules.
-                const fullPath = `${destinationPath}/${newFilename}`;
-                let existingFile = this.app.vault.getAbstractFileByPath(fullPath);
-                let skipFurtherProcessing = false;
-
-                if (
-                    selectedFilenamePreset &&
-                    this.folderAndFilenameManagement.shouldSkipRename(
-                        file.name,
-                        selectedFilenamePreset
-                    )
-                ) {
-                    new Notice(
-                        `Skipped renaming/conversion of image "${file.name}" due to skip pattern match.`
-                    );
-                    skipFurtherProcessing = true;
-                } else if (
-                    selectedFilenamePreset &&
-                    selectedFilenamePreset.conflictResolution === "increment"
-                ) {
-                    try {
-                        newFilename = await this.folderAndFilenameManagement.handleNameConflicts(
-                            destinationPath,
-                            newFilename,
-                            "increment"
-                        );
-                        existingFile = this.app.vault.getAbstractFileByPath(
-                            `${destinationPath}/${newFilename}`
-                        );
-                    } catch (error) {
-                        const errorMessage = error instanceof Error ? error.message : String(error);
-                        console.error("Error handling filename conflicts:", errorMessage);
-                        new Notice(`Error incrementing filename for "${file.name}". Check console for details.`);
-                        return; // Resolve this promise
-                    }
-                }
-
-                const newFullPath = this.folderAndFilenameManagement.combinePath(destinationPath, newFilename);
-
-                // Step 3.4: Reject unsafe paths before creating folders or writing the image.
-                if (!this.validateAttachmentPath(newFullPath)) {
-                    return;
-                }
-
-                try {
-                    await this.folderAndFilenameManagement.ensureFolderExists(destinationPath);
-                } catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : String(error);
-                    if (!errorMessage.startsWith('Folder already exists')) {
-                        console.error("Error creating folder:", errorMessage);
-                        new Notice(`Failed to create folder "${destinationPath}". Check console for details.`);
-                        return; // Resolve this promise
-                    }
-                }
-
-                // Step 3.5: Process, Reuse, or Skip
-                if (!skipFurtherProcessing) {
-                    // Step 3.5.1: Reuse Existing File (if applicable)
-                    // - If the file exists and the preset is set to "reuse," insert a link to the existing file.
-                    if (existingFile && selectedFilenamePreset && selectedFilenamePreset.conflictResolution === "reuse") {
-                        try {
-                            await this.insertLinkAtCursorPosition(editor, existingFile.path, cursor, selectedLinkFormatPreset, selectedResizePreset);
-                        } catch (error) {
-                            const errorMessage = error instanceof Error ? error.message : String(error);
-                            console.error("Failed to insert link for reused file:", errorMessage);
-                            new Notice(`Failed to insert link for "${existingFile.name}". Check console for details.`);
-                        }
-                        return;
-                    }
-
-                    // Step 3.5.2: Check for Skipped Conversion BEFORE Processing
-                    // - Check if the current file matches a skip pattern in the conversion preset.
-                    // - If it matches, skip image processing entirely.
-                    if (selectedConversionPreset && this.folderAndFilenameManagement.shouldSkipConversion(file.name, selectedConversionPreset)) {
-                        new Notice(`Skipped conversion of image "${file.name}" due to skip pattern match in the conversion preset.`);
-
-                        // Save the original file directly to the vault without any processing.
-                        // const originalSize = file.size;
-                        const fileBuffer = await file.arrayBuffer();
-                        // Vault.createBinary returns a TFile or throws on failure (no null result).
-                        const tfile = await this.app.vault.createBinary(newFullPath, fileBuffer);
-
-                        // Insert a link to the newly created (unprocessed) file.
-                        try {
-                            await this.insertLinkAtCursorPosition(editor, tfile.path, cursor, selectedLinkFormatPreset, selectedResizePreset);
-                        } catch (error) {
-                            const errorMessage = error instanceof Error ? error.message : String(error);
-                            console.error("Failed to insert link for skipped conversion:", errorMessage);
-                            new Notice(`Failed to insert link for "${file.name}". Check console for details.`);
-                        }
-                    } else {
-                        // Step 3.5.3: Process the Image (ONLY if not skipped)
-                        // - Process the image using the selected or default settings.
-                        try {
-                            const originalSize = file.size;
-                            this.processedImage = await this.imageProcessor.processImage(
-                                file,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.outputFormat
-                                    : this.settings.outputFormat,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.quality / 100
-                                    : this.settings.quality / 100,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.colorDepth
-                                    : this.settings.colorDepth,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.resizeMode
-                                    : this.settings.resizeMode,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.desiredWidth
-                                    : this.settings.desiredWidth,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.desiredHeight
-                                    : this.settings.desiredHeight,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.desiredLongestEdge
-                                    : this.settings.desiredLongestEdge,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.enlargeOrReduce
-                                    : this.settings.enlargeOrReduce,
-                                selectedConversionPreset
-                                    ? selectedConversionPreset.allowLargerFiles
-                                    : this.settings.allowLargerFiles,
-                                selectedConversionPreset, // Pass preset to ImageProcessor
-                                this.settings
-                            );
-
-                            let tfile: TFile;
-                            // Step 3.5.4: Create the Image File in Vault
-                            // - Create the new image file in the Obsidian vault using `createBinary`.
-                            // - Show space savings notification
-                            // Check if processed image is larger than original + minimum savings
-                            const minSavingsKB = (typeof (selectedConversionPreset?.minimumCompressionSavingsInKB ?? this.settings.minimumCompressionSavingsInKB) === 'number'
-                                && (selectedConversionPreset?.minimumCompressionSavingsInKB ?? this.settings.minimumCompressionSavingsInKB) >= 0)
-                                ? (selectedConversionPreset?.minimumCompressionSavingsInKB ?? this.settings.minimumCompressionSavingsInKB)
-                                : 30;
-                            const shouldRevertIfLarger = selectedConversionPreset?.revertToOriginalIfLarger
-                                ?? this.settings.revertToOriginalIfLarger;
-
-                            if (shouldRevertIfLarger && this.processedImage.byteLength + (minSavingsKB * 1024) > originalSize) {
-                                // User wants to revert AND processed image is larger
-                                this.showSizeComparisonNotification(originalSize, this.processedImage.byteLength);
-                                new Notice(`Using original image for "${file.name}" because size reduction was less than ${minSavingsKB} KB.`);
-
-                                const fileBuffer = await file.arrayBuffer();
-                                tfile = await this.app.vault.createBinary(newFullPath, fileBuffer);
-                            } else {
-                                // Processed image is smaller OR user doesn't want to revert
-                                this.showSizeComparisonNotification(originalSize, this.processedImage.byteLength);
-                                tfile = await this.app.vault.createBinary(newFullPath, this.processedImage);
-                            }
-
-                            // Step 3.5.5: Insert Link into Editor
-                            // - Insert the link to the new image into the editor.
-                            try {
-                                await this.insertLinkAtCursorPosition(editor, tfile.path, cursor, selectedLinkFormatPreset, selectedResizePreset);
-                            } catch (error) {
-                                const errorMessage = error instanceof Error ? error.message : String(error);
-                                console.error("Failed to insert link after processing:", errorMessage);
-                                new Notice(`Failed to insert link for "${file.name}". Check console for details.`);
-                            }
-                        } catch (error) {
-                            // Step 3.5.6: Handle Image Processing Errors
-                            // - Handle errors during image processing.
-                            const errorMessage = error instanceof Error ? error.message : String(error);
-                            console.error("Image processing failed:", errorMessage);
-                            if (error instanceof Error) {
-                                if (error.message.includes("File already exists")) {
-                                    new Notice(`Failed to process image: File "${newFilename}" already exists.`);
-                                } else if (error.message.includes("Invalid input file type")) {
-                                    new Notice(`Failed to process image: Invalid input file type for "${file.name}".`);
-                                } else {
-                                    new Notice(`Failed to process image "${file.name}": ${error.message}. Check console for details.`);
-                                }
-                            } else {
-                                new Notice(`Failed to process image "${file.name}". Check console for details.`);
-                            }
-                            return; // Resolve this promise
-                        }
-                    }
-                } else {
-                    // Step 3.6: Handle Skipped Processing
-                    // - If skipping, insert a link to an existing file or do nothing.
-                    if (existingFile) {
-                        try {
-                            await this.insertLinkAtCursorPosition(editor, existingFile.path, cursor, selectedLinkFormatPreset, selectedResizePreset);
-                        } catch (error) {
-                            const errorMessage = error instanceof Error ? error.message : String(error);
-                            console.error("Failed to insert link for skipped processing:", errorMessage);
-                            new Notice(`Failed to insert link for "${existingFile.name}". Check console for details.`);
-                        }
-                    }
-                }
-            } catch (error) {
-                // Step 3.7: Handle Unexpected Errors
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                console.error("An unexpected error occurred:", errorMessage);
-                new Notice('An unexpected error occurred. Check console for details.');
-            } finally {
-                // Clear memory after processing
-                this.clearMemory();
-            }
-        });
-
-        // Step 4: Wait for All Promises to Complete
-        // - Wait for all file processing promises to settle.
-        await Promise.all(filePromises);
-
-        if (this.settings.enableImageCaptions) {
-            this.captionManager?.refresh();
-        }
-    }
-
-    // Helper function to insert link at the specified cursor position
-    private async insertLinkAtCursorPosition(
-        editor: Editor,
-        linkPath: string,
-        cursor: EditorPosition,
-        selectedLinkFormatPreset?: LinkFormatPreset,
-        selectedResizePreset?: NonDestructiveResizePreset
-    ) {
-        const activeFile = this.app.workspace.getActiveFile();
-
-        // Use the passed presets or fall back to the plugin settings
-        const linkFormatPresetToUse = selectedLinkFormatPreset || this.settings.linkFormatSettings.linkFormatPresets.find(
-            (preset) => preset.name === this.settings.linkFormatSettings.selectedLinkFormatPreset
-        );
-
-        const resizePresetToUse = selectedResizePreset || this.settings.nonDestructiveResizeSettings.resizePresets.find(
-            (preset) => preset.name === this.settings.nonDestructiveResizeSettings.selectedResizePreset
-        );
-
-        let formattedLink: string;
-        try {
-            // Await the result of formatLink
-            formattedLink = await this.linkFormatter.formatLink(
-                linkPath, // Pass the original linkPath
-                linkFormatPresetToUse?.linkFormat || "wikilink",
-                linkFormatPresetToUse?.pathFormat || "shortest",
-                activeFile,
-                resizePresetToUse // Now using the selected resize preset
+                    this.display();
+                })
             );
 
-            // ----- FRONT or BACK ---------
-            // Insert the link at the saved cursor position
-            // - FRONT:Keeps the cursor at the front by default (by doing nothing) when cursorLocation is "front"
-            editor.replaceRange(formattedLink, cursor);
-
-            // Use positive check for "back"
-            // - We have to be carefull not to place it to the back 2 times.
-            if (this.settings.dropPasteCursorLocation === "back") {
-                editor.setCursor({
-                    line: cursor.line,
-                    ch: cursor.ch + formattedLink.length,
-                });
-            }
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error('Failed to insert image link:', errorMessage);
-            new Notice('Failed to insert image link. Check console for details.');
-            return;
-        }
-
-        // Apply default alignment if enabled
-        if (
-            this.settings.isImageAlignmentEnabled &&
-            this.settings.imageAlignmentDefaultAlignment &&
-            this.settings.imageAlignmentDefaultAlignment !== 'none' &&
-            activeFile &&
-            this.ImageAlignmentManager
-        ) {
-            try {
-                const defaultAlign = this.settings.imageAlignmentDefaultAlignment;
-                const alignmentAdded = await this.ImageAlignmentManager.ensureDefaultAlignment(
-                    activeFile.path,
-                    linkPath,
-                    defaultAlign
-                );
-
-                // If alignment was added, refresh the view to apply it
-                if (alignmentAdded) {
-                    window.setTimeout(() => {
-                        const currentFile = this.app.workspace.getActiveFile();
-                        if (currentFile?.path === activeFile.path) {
-                            this.ImageAlignmentManager?.applyAlignmentsToNote(activeFile.path)
-                                .catch((err) => {
-                                    const errorMessage = err instanceof Error ? err.message : String(err);
-                                    console.error('Failed to apply alignments:', errorMessage);
-                                });
-                        }
-                    }, 0);
-                }
-            } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                console.error('Failed to apply default alignment after insert:', errorMessage);
-            }
-        }
-    }
-
-    private formatFileSize(bytes: number): string {
-        if (bytes < 1024) {
-            return `${bytes} bytes`;
-        }
-        if (bytes < 1024 * 1024) {
-            return `${(bytes / 1024).toFixed(1)} KB`;
-        }
-        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    }
-
-    showSizeComparisonNotification(originalSize: number, newSize: number) {
-        if (!this.settings.showSpaceSavedNotification) return;
-
-        const originalSizeFormatted = this.formatFileSize(originalSize);
-        const newSizeFormatted = this.formatFileSize(newSize);
-
-        const percentChange = ((newSize - originalSize) / originalSize * 100).toFixed(1);
-        const changeSymbol = newSize > originalSize ? '+' : '';
-
-        const message = `${originalSizeFormatted} → ${newSizeFormatted} (${changeSymbol}${percentChange}%)`;
-        new Notice(message);
-    }
-
-    getPresetByName<T extends { name: string }>(
-        presetName: string,
-        presetArray: T[],
-        presetType: string
-    ): T {
-        const preset = presetArray.find(candidate => candidate.name === presetName);
-        if (!preset) {
-            console.warn(`${presetType} preset "${presetName}" not found, using default`);
-            return presetArray[0];
-        }
-        return preset;
-    }
-
-    private clearMemory() {
-        // Clear the processed image buffer
-        if (this.processedImage) {
-            this.processedImage = null;
-        }
-
-        // Following might be pointless, but lets do it still  - clear any ArrayBuffers or Blobs in memory
-        if (this.temporaryBuffers) {
-            for (let i = 0; i < this.temporaryBuffers.length; i++) {
-                this.temporaryBuffers[i] = null;
-            }
-            this.temporaryBuffers = [];
-        }
+        this.plugin.steward.renderSettings(containerEl.createDiv(), () => this.display());
     }
 }

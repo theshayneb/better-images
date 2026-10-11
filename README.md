@@ -1,9 +1,9 @@
 # Better Images & Attachments
 
-An Obsidian plugin that combines two plugins into one:
+An Obsidian plugin that does two things:
 
-- **Images** (based on [Image Converter](https://github.com/xRyul/obsidian-image-converter) by xRyul): convert, compress, resize, crop, rotate, flip, annotate and align images, with batch processing.
-- **Attachments** (based on [Attachment Steward](https://github.com/m1roff/obsidian-attachment-steward) by miroff): files every attachment into templated folders and filenames, remembers each file's original name, and never breaks links.
+- **Organizes attachments**: all of [Attachment Steward](https://github.com/m1roff/obsidian-attachment-steward) by miroff. It files every attachment into templated folders and filenames, remembers each file's original name, and never breaks links.
+- **Crops, rotates and flips images**: the crop tool from [Image Converter](https://github.com/xRyul/obsidian-image-converter) by xRyul, opened from an image's right-click menu. Nothing else from Image Converter is included.
 
 Plugin ID: `better-images`.
 
@@ -13,44 +13,34 @@ Plugin ID: `better-images`.
 2. In BRAT's settings choose **Add beta plugin** and enter `theshayneb/better-images`.
 3. Enable **Better Images & Attachments** under Settings → Community plugins.
 
-If you use the original Image Converter or Attachment Steward, turn them off: running them alongside this plugin would process every pasted image twice. Settings are not carried over from them, so set this plugin up once (it has its own `data.json`).
+### Moving over from Attachment Steward
 
-## Settings
+The first time it runs, the plugin copies the settings and attachment records of the Attachment Steward plugin installed in the same vault, and shows a notice when it has. Then **turn off Attachment Steward**, or both will organize your attachments.
 
-The settings tab has two sections, switched with the buttons at the top:
+You can repeat the import any time with **Import** at the top of this plugin's settings; it replaces the attachment settings and records with Attachment Steward's.
 
-- **Images**: the full Image Converter settings (presets for conversion, folders, filenames, link format, resizing; alignment, drag-resize, captions, context menu).
-- **Attachments**: the full Attachment Steward settings (location and name templates, exclusions, per-extension overrides, maintenance actions).
+## Crop, rotate or flip an image
 
-### Using both together
+Open the editor in any of these ways:
 
-When you paste or drop an image, the Images half converts it and saves it; the Attachments half then notices the new file, waits until a note links to it, and moves and renames it according to its templates. Converting a file to a new format (for example PNG to WebP) is recognized as the same attachment, so it keeps its original name.
+- Right-click an image in the file list.
+- Right-click an image shown in a note.
+- In the editor, right-click on an image link (`![[photo.png]]` or `![](photo.png)`).
+- Run the command **Crop, rotate or flip image** while viewing an image, or with the cursor on an image link.
 
-To avoid two sets of naming rules fighting, pick one half to decide where files go:
+In the editor, drag a crop box (optionally locked to a ratio such as 1:1 or 16:9), rotate, flip, zoom, then **Save**. Saving overwrites the image at the same path in the same format, so links and attachment records stay valid. Works with PNG, JPG and WebP.
 
-- **Let Attachments organize** (recommended): leave the Images folder and filename presets on their defaults and set the location and name templates under Attachments.
-- **Let Images organize**: exclude the folders your Images presets write to under Attachments → Exclusions (or right-click the folder → Organize attachments → Exclude this folder).
+Drawing the crop box needs a mouse or trackpad; on a phone, rotate and flip work but dragging a crop box doesn't.
 
-## Features
-
-### Images
-
-- Convert pasted and dropped images to WebP, JPG or PNG; compress with a quality setting.
-- Resize originals or just the link (`|width`), including drag-resize and scroll-wheel resize.
-- Crop, rotate and flip; annotate and draw on images.
-- Align images and wrap text around them; captions.
-- Right-click menu on images in notes: rename/move, resize, copy, copy as Base64, convert/compress, crop/rotate/flip, annotate, delete image and link.
-- Batch process a note, a folder or the whole vault.
-
-More detail: [docs/image-converter/README.md](docs/image-converter/README.md).
-
-### Attachments
+## Organizing attachments
 
 - Moves and renames new attachments as soon as a note links to them, using templates such as `${notename}`, `${originalname}`, `${date}` and `${md5}`.
 - Keeps each attachment's original name, so rules can be changed and reapplied any time.
 - Moves attachments along when their note is renamed.
-- Folder right-click menu (Organize attachments): adopt, reapply rules, prune records, find attachments with no links, exclude the folder.
+- Folder right-click menu (**Organize attachments**): adopt, reapply rules, prune records, find attachments with no links, exclude the folder.
 - Commands: reapply rules (all, active note), adopt unmanaged attachments (active note, whole vault), prune orphaned records.
+
+If your name template uses `${md5}`, cropping an image changes its contents, so the next **Reapply rules** gives it a new name.
 
 More detail: [docs/attachment-steward/README.md](docs/attachment-steward/README.md).
 
@@ -58,14 +48,13 @@ More detail: [docs/attachment-steward/README.md](docs/attachment-steward/README.
 
 ```
 npm ci
-npm run typecheck   # tsc for the plugin and the Attachments tests
-npm test            # Images tests (tests/) and Attachments tests (test-steward/)
+npm run typecheck
+npm test            # tests/ (crop tool) and test-steward/ (attachments)
+npm run lint
 npm run build       # writes build/main.js, build/manifest.json, build/styles.css
 ```
 
-Code layout: the image features live in `src/`, the attachment organizer in `src/steward/` (started from `src/steward/module.ts`). `src/main.ts` loads both, and `src/BetterImagesSettingTab.ts` is the combined settings tab.
-
-Releases are published by `.github/workflows/release.yml`; see [CHANGELOG.md](CHANGELOG.md).
+`src/main.ts` is the plugin; the attachment organizer is in `src/steward/` and the crop tool in `src/crop/`. Releases are published by `.github/workflows/release.yml`; see [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

@@ -1,6 +1,6 @@
 # Better Images & Attachments: notes for Claude Code
 
-The owner's Obsidian plugin combining Image Converter (image features, in `src/`) and Attachment Steward (attachment organizer, in `src/steward/`). Installed with BRAT from `theshayneb/better-images`. Keep the plugin id `better-images`: changing it would orphan the installed plugin and its `data.json`.
+The owner's Obsidian plugin: Attachment Steward's attachment organizer (`src/steward/`) plus Image Converter's crop / rotate / flip editor (`src/crop/`), opened from image right-click menus. The owner only wants crop/rotate/flip from Image Converter; don't bring back its other features. Installed with BRAT from `theshayneb/better-images`. Keep the plugin id `better-images`: changing it would orphan the installed plugin and its `data.json`.
 
 ## Workflow
 
@@ -16,16 +16,14 @@ The owner's Obsidian plugin combining Image Converter (image features, in `src/`
 
 ```
 npm run typecheck
-npm test            # tests/ (images) and test-steward/ (attachments, own Obsidian mock)
+npm test            # tests/ (crop tool) and test-steward/ (attachments, own Obsidian mock)
+npm run lint        # warnings only in src/crop/Crop.ts (copied from Image Converter)
 npm run build
-npx eslint src/main.ts src/BetterImagesSettingTab.ts "src/steward/**/*.ts"
 ```
-
-`npm run lint` (whole `src/`) has some pre-existing errors in the original Image Converter files; don't add new ones.
 
 ## Things to know
 
-- `data.json` holds the image settings at the top level and the attachment settings under `attachmentSteward`. `src/main.ts` splits them on load and writes both on every save (`saveAllData`); nothing else should call `saveData` directly.
+- `data.json` holds the attachment settings under `attachmentSteward`. `src/main.ts` owns `saveData`; the organizer saves through the `StewardHost` it is given.
 - Attachment records are sharded under the plugin folder in `records/`, not in `data.json`.
-- The settings tab (`src/BetterImagesSettingTab.ts`) extends the image settings tab and adds an Images / Attachments switcher.
+- On first run (no `attachmentSteward` saved) the plugin imports the stand-alone Attachment Steward's `data.json` and `records/` (`src/steward/import.ts`); the settings tab has an Import button for doing it again.
 - `src/steward/` keeps upstream Attachment Steward's code style (eslint override in `eslint.config.mjs`) so upstream fixes can be compared and ported.

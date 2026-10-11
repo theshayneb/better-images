@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.1] - 2026-10-11
+
+- Slimmed down to Attachment Steward plus crop / rotate / flip. All other Image Converter features are gone (paste conversion, compression, resizing, annotation, alignment, captions, batch processing), so the settings tab now only has the attachment settings.
+- Imports your Attachment Steward settings and attachment records automatically on first run, and from **Import** at the top of the settings any time.
+- **Crop, rotate or flip** in the right-click menu of PNG, JPG and WebP images (file list and images in notes) and of image links in the editor, plus a command for the open image or the image link under the cursor.
+
 ## [1.0.0] - 2026-10-11
 
 First release of Better Images & Attachments, combining Image Converter 1.4.6 and Attachment Steward 0.6.0 into one plugin (ID `better-images`).
