@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.2] - 2026-10-11
+
+- Fixed: if version 1.0.0 had ever run, 1.0.1 skipped importing your Attachment Steward settings and used the default attachment settings instead. This version imports them once on start-up (replacing the defaults), as long as Attachment Steward is still installed in the vault.
+
 ## [1.0.1] - 2026-10-11
 
 - Slimmed down to Attachment Steward plus crop / rotate / flip. All other Image Converter features are gone (paste conversion, compression, resizing, annotation, alignment, captions, batch processing), so the settings tab now only has the attachment settings.

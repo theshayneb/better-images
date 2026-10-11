@@ -655,3 +655,13 @@ export abstract class AbstractInputSuggest<T> {
 }
 
 export const moment = realMoment;
+
+// Minimal stand-ins so src/main.ts (and the crop tool it imports) can load.
+export class Component {
+  load(): void {}
+  unload(): void {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  registerDomEvent(..._args: any[]): void {}
+}
+
+export class MarkdownView {}

@@ -8,6 +8,12 @@ import { StewardModule } from "./steward/module";
 
 /** Key in data.json holding the attachment organizer's settings. */
 const ATTACHMENTS_DATA_KEY = "attachmentSteward";
+/**
+ * Set in data.json once the first-run import from Attachment Steward has been
+ * tried. Version 1.0.0 saved default attachment settings without importing,
+ * so having settings saved doesn't mean the import already happened.
+ */
+const IMPORT_CHECKED_KEY = "attachmentStewardImportChecked";
 
 const DISABLE_STEWARD_HINT = "Turn off the Attachment Steward plugin so attachments aren't organized twice.";
 
@@ -23,6 +29,7 @@ export default class BetterImagesPlugin extends Plugin {
     async onload() {
         const saved = (await this.loadData()) as Record<string, unknown> | null;
         this.stewardData = saved?.[ATTACHMENTS_DATA_KEY] ?? null;
+        const importChecked = saved?.[IMPORT_CHECKED_KEY] === true;
 
         const host: StewardHost = {
             app: this.app,
@@ -30,13 +37,14 @@ export default class BetterImagesPlugin extends Plugin {
             loadData: () => Promise.resolve(this.stewardData),
             saveData: async (data: unknown) => {
                 this.stewardData = data;
-                await this.saveData({ [ATTACHMENTS_DATA_KEY]: data });
+                await this.saveData({ [ATTACHMENTS_DATA_KEY]: data, [IMPORT_CHECKED_KEY]: true });
             },
         };
 
         // First run: take over the stand-alone Attachment Steward's settings and records.
-        if (this.stewardData === null) {
-            await this.importFromAttachmentSteward(host, false);
+        if (!importChecked) {
+            const imported = await this.importFromAttachmentSteward(host, false);
+            if (!imported && this.stewardData !== null) await host.saveData(this.stewardData);
         }
 
         this.steward = new StewardModule(this, host);
