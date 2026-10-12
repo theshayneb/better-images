@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.4] - 2026-10-12
+
+- "Download cover images" (commands and folder menu) now shows "Downloading covers for 40 notes…" while it works, counting notes as they finish, then the summary.
+
 ## [1.0.3] - 2026-10-12
 
 - New: **cover images**. When a note's `Image` or `WideImage` property holds a web link, the image is downloaded to the `Images` folder next to the note and the property is changed to link to the saved file. It is named after the note (`Dune.jpg`, `Dune-wide.jpg`); notes tagged `#song` are named after their `Album` property instead, and songs on an album that already has an image reuse it without downloading again.

@@ -80,11 +80,21 @@ export class CoverDownloader {
             new Notice("No notes with a web link in Image or WideImage.");
             return;
         }
+        const noun = (count: number) => (count === 1 ? "note" : "notes");
+        // Stays up (duration 0) until the batch is done, counting notes as they finish.
+        const progress = new Notice(`Downloading covers for ${todo.length} ${noun(todo.length)}…`, 0);
         const total: CoverResult = { saved: [], errors: [] };
-        for (const note of todo) {
-            const result = await this.processNote(note);
-            total.saved.push(...result.saved);
-            total.errors.push(...result.errors);
+        try {
+            for (const [index, note] of todo.entries()) {
+                const result = await this.processNote(note);
+                total.saved.push(...result.saved);
+                total.errors.push(...result.errors);
+                if (index + 1 < todo.length) {
+                    progress.setMessage(`Downloading covers for ${todo.length} ${noun(todo.length)}… (${index + 1} done)`);
+                }
+            }
+        } finally {
+            progress.hide();
         }
         this.report(total, true);
     }

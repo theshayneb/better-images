@@ -693,9 +693,21 @@ export class Notice {
   message: string;
   static log: string[] = [];
 
-  constructor(message: string) {
+  hidden = false;
+
+  constructor(message: string, _duration?: number) {
     this.message = message;
     Notice.log.push(message);
+  }
+
+  setMessage(message: string): this {
+    this.message = message;
+    Notice.log.push(message);
+    return this;
+  }
+
+  hide(): void {
+    this.hidden = true;
   }
 }
 

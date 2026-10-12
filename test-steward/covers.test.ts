@@ -1,4 +1,4 @@
-import { App, setRequestUrlHandler, TFile } from "obsidian";
+import { App, Notice, setRequestUrlHandler, TFile } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CoverDownloader } from "../src/covers/CoverDownloader";
 import { coverBaseName, imageExtension, sanitizeFileName } from "../src/covers/names";
@@ -88,6 +88,23 @@ describe("CoverDownloader", () => {
     await new CoverDownloader(app).processNote(dune);
 
     expect(old._content.byteLength).toBe(JPEG.byteLength);
+  });
+
+  it("shows progress while downloading several notes, then a summary", async () => {
+    const app = new App();
+    serve({ "https://img/a": { body: JPEG }, "https://img/b": { body: PNG } });
+    note(app, "Books/Dune.md", { Image: "https://img/a" });
+    note(app, "Books/Emma.md", { Image: "https://img/b" });
+    note(app, "Books/Plain.md", { Title: "no cover" });
+    Notice.log = [];
+
+    await new CoverDownloader(app).processNotes(app.vault.getMarkdownFiles());
+
+    expect(Notice.log).toEqual([
+      "Downloading covers for 2 notes…",
+      "Downloading covers for 2 notes… (1 done)",
+      "Saved cover: 2 images",
+    ]);
   });
 
   it("leaves the property alone when the link isn't an image", async () => {
