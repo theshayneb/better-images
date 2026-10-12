@@ -1,5 +1,5 @@
 import { App, getAllTags, normalizePath, Notice, requestUrl, TFile, TFolder } from "obsidian";
-import { COVER_FOLDER, COVER_PROPERTIES, coverBaseName, IMAGE_EXTENSIONS, imageExtension, isWebUrl, propertyText } from "./names";
+import { COVER_PROPERTIES, coverBaseName, coverFolderFor, IMAGE_EXTENSIONS, imageExtension, isWebUrl, propertyText, sanitizeFileName, stripWikiLink } from "./names";
 
 /** Wait this long after a note changes before downloading, so a URL being typed or pasted has settled. */
 const SETTLE_MS = 1500;
@@ -144,7 +144,7 @@ export class CoverDownloader {
      * without downloading; otherwise an existing file of that name is replaced.
      */
     private async saveCover(note: TFile, url: string, name: string, shared: boolean): Promise<TFile> {
-        const folder = normalizePath(note.parent && note.parent.path !== "/" ? `${note.parent.path}/${COVER_FOLDER}` : COVER_FOLDER);
+        const folder = normalizePath(coverFolderFor(note.parent?.path ?? ""));
 
         if (shared) {
             const existing = this.findExisting(folder, name);
@@ -173,6 +173,61 @@ export class CoverDownloader {
             // Keep it protected until the note's property links to it.
             window.setTimeout(() => this.inFlight.delete(path), 10000);
         }
+    }
+
+    /**
+     * After a note is renamed or moved, renames its own covers to match
+     * (`Images/<new name>.jpg`, `<new name>-wide.jpg`) and moves them to the
+     * Images folder next to the note's new location. Only covers named after
+     * the note's old name, in the Images folder next to its old location, are
+     * touched; album covers of #song notes are shared, so they stay put.
+     */
+    async onNoteRenamed(note: TFile, oldPath: string): Promise<void> {
+        const cache = this.app.metadataCache.getFileCache(note);
+        const frontmatter = cache?.frontmatter as Record<string, unknown> | undefined;
+        if (!frontmatter) return;
+        const base = coverBaseName(note.basename, frontmatter, cache ? getAllTags(cache) ?? [] : []);
+        if (base.shared) return;
+
+        const oldParent = oldPath.includes("/") ? oldPath.slice(0, oldPath.lastIndexOf("/")) : "";
+        const oldBasename = oldPath.slice(oldPath.lastIndexOf("/") + 1).replace(/\.md$/i, "");
+        const oldFolder = normalizePath(coverFolderFor(oldParent));
+        const newFolder = normalizePath(coverFolderFor(note.parent?.path ?? ""));
+        const updates: Record<string, string> = {};
+
+        for (const { key, suffix } of COVER_PROPERTIES) {
+            const text = propertyText(frontmatter[key]);
+            if (!text || isWebUrl(text)) continue;
+            const cover = this.app.metadataCache.getFirstLinkpathDest(stripWikiLink(text), note.path);
+            if (!cover || cover.parent?.path !== oldFolder || cover.basename !== `${sanitizeFileName(oldBasename)}${suffix}`) continue;
+
+            const target = normalizePath(`${newFolder}/${base.name}${suffix}.${cover.extension}`);
+            if (target === cover.path) continue;
+            if (this.app.vault.getAbstractFileByPath(target)) {
+                new Notice(`Didn't rename ${cover.path}: ${target} already exists.`);
+                continue;
+            }
+            try {
+                await this.ensureFolder(newFolder);
+                this.inFlight.add(target);
+                await this.app.fileManager.renameFile(cover, target);
+                updates[key] = `[[${this.app.metadataCache.fileToLinktext(cover, note.path, true)}]]`;
+            } catch (err) {
+                console.error(`[better-images] couldn't rename cover ${cover.path}`, err);
+                new Notice(`Couldn't rename ${cover.path}. See the developer console for details.`);
+            } finally {
+                window.setTimeout(() => this.inFlight.delete(target), 10000);
+            }
+        }
+
+        // Obsidian may already have updated the links; set them anyway in case
+        // "Automatically update internal links" is off.
+        if (Object.keys(updates).length > 0) {
+            await this.app.fileManager.processFrontMatter(note, (fm: Record<string, unknown>) => {
+                for (const [key, link] of Object.entries(updates)) fm[key] = link;
+            });
+        }
+        this.invalidate();
     }
 
     private findExisting(folder: string, name: string): TFile | null {

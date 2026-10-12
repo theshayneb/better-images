@@ -1,7 +1,7 @@
 {
   "id": "better-images",
   "name": "Better Images & Attachments",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "minAppVersion": "1.6.6",
   "description": "Keeps attachments organized in templated folders and filenames without breaking links (Attachment Steward), downloads cover images linked in note properties, and lets you crop, rotate and flip images from their right-click menu.",
   "author": "theshayneb",

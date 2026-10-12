@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.5] - 2026-10-12
+
+- Fixed: renaming a note (for example a #book note) left its cover images under the old name. Now `Images/<old name>.jpg` and `<old name>-wide.jpg` are renamed to the note's new name, moved to the `Images` folder next to the note if the note moved, and the `Image` / `WideImage` properties are updated. Album covers of #song notes are shared and stay as they are; images with other names are left alone, and an existing image with the new name is never overwritten.
+
 ## [1.0.4] - 2026-10-12
 
 - "Download cover images" (commands and folder menu) now shows "Downloading covers for 40 notes…" while it works, counting notes as they finish, then the summary.

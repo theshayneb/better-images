@@ -26,5 +26,5 @@ npm run build
 - `data.json` holds the attachment settings under `attachmentSteward` and the cover settings under `coverImages`. `src/main.ts` owns `saveData`; the organizer saves through the `StewardHost` it is given.
 - Attachment records are sharded under the plugin folder in `records/`, not in `data.json`.
 - On first run (no `attachmentSteward` saved) the plugin imports the stand-alone Attachment Steward's `data.json` and `records/` (`src/steward/import.ts`); the settings tab has an Import button for doing it again.
-- Cover images: saved to `Images/` next to the note, named after the note (`-wide` for WideImage), or after the `Album` property for notes tagged `#song` (shared, reused if it exists). The organizer skips them via `Store.isProtected`, which `src/main.ts` points at `CoverDownloader.isCover`.
+- Cover images: saved to `Images/` next to the note, named after the note (`-wide` for WideImage), or after the `Album` property for notes tagged `#song` (shared, reused if it exists). The organizer skips them via `Store.isProtected`, which `src/main.ts` points at `CoverDownloader.isCover`; instead `CoverDownloader.onNoteRenamed` renames/moves a note's own covers when the note is renamed.
 - `src/steward/` keeps upstream Attachment Steward's code style (eslint override in `eslint.config.mjs`) so upstream fixes can be compared and ported.

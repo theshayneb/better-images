@@ -144,3 +144,76 @@ describe("covers and the attachment organizer", () => {
     expect(plugin.steward.store.has(cover.path)).toBe(false);
   });
 });
+
+describe("renaming a note renames its covers", () => {
+  function withCovers(app: App, notePath: string, frontmatter: Record<string, unknown>, covers: string[], tags: string[] = []): TFile {
+    for (const path of covers) app.vault.seedFile(path, { content: JPEG });
+    return note(app, notePath, frontmatter, tags);
+  }
+
+  it("renames Image and WideImage to the note's new name and updates the properties", async () => {
+    const app = new App();
+    const dune = withCovers(app, "Books/Dune.md", { Image: "[[Dune.jpg]]", WideImage: "[[Dune-wide.png]]" }, ["Books/Images/Dune.jpg", "Books/Images/Dune-wide.png"]);
+
+    await app.vault.renameFile(dune, "Books/Dune Messiah.md");
+    await new CoverDownloader(app).onNoteRenamed(dune, "Books/Dune.md");
+
+    expect(app.vault.getAbstractFileByPath("Books/Images/Dune Messiah.jpg")).toBeInstanceOf(TFile);
+    expect(app.vault.getAbstractFileByPath("Books/Images/Dune Messiah-wide.png")).toBeInstanceOf(TFile);
+    expect(app.vault.getAbstractFileByPath("Books/Images/Dune.jpg")).toBeNull();
+    expect(app.metadataCache.getFileCache(dune)?.frontmatter).toMatchObject({ Image: "[[Dune Messiah.jpg]]", WideImage: "[[Dune Messiah-wide.png]]" });
+  });
+
+  it("moves covers to the Images folder next to a moved note", async () => {
+    const app = new App();
+    const dune = withCovers(app, "Inbox/Dune.md", { Image: "[[Dune.jpg]]" }, ["Inbox/Images/Dune.jpg"]);
+
+    await app.vault.renameFile(dune, "Books/Dune.md");
+    await new CoverDownloader(app).onNoteRenamed(dune, "Inbox/Dune.md");
+
+    expect(app.vault.getAbstractFileByPath("Books/Images/Dune.jpg")).toBeInstanceOf(TFile);
+    expect(app.vault.getAbstractFileByPath("Inbox/Images/Dune.jpg")).toBeNull();
+  });
+
+  it("leaves shared album covers and images not named after the note alone", async () => {
+    const app = new App();
+    const love = withCovers(app, "Music/Love.md", { Image: "[[Abbey Road.jpg]]", Album: "Abbey Road" }, ["Music/Images/Abbey Road.jpg"], ["#song"]);
+    const dune = withCovers(app, "Books/Dune.md", { Image: "[[my scan.jpg]]" }, ["Books/Images/my scan.jpg"]);
+    const downloader = new CoverDownloader(app);
+
+    await app.vault.renameFile(love, "Music/Love Me Do.md");
+    await downloader.onNoteRenamed(love, "Music/Love.md");
+    await app.vault.renameFile(dune, "Books/Dune 2.md");
+    await downloader.onNoteRenamed(dune, "Books/Dune.md");
+
+    expect(app.vault.getAbstractFileByPath("Music/Images/Abbey Road.jpg")).toBeInstanceOf(TFile);
+    expect(app.vault.getAbstractFileByPath("Books/Images/my scan.jpg")).toBeInstanceOf(TFile);
+  });
+
+  it("doesn't overwrite an image that already has the new name", async () => {
+    const app = new App();
+    const dune = withCovers(app, "Books/Dune.md", { Image: "[[Dune.jpg]]" }, ["Books/Images/Dune.jpg", "Books/Images/Emma.jpg"]);
+
+    await app.vault.renameFile(dune, "Books/Emma.md");
+    await new CoverDownloader(app).onNoteRenamed(dune, "Books/Dune.md");
+
+    expect(app.vault.getAbstractFileByPath("Books/Images/Dune.jpg")).toBeInstanceOf(TFile);
+    expect(app.metadataCache.getFileCache(dune)?.frontmatter?.Image).toBe("[[Dune.jpg]]");
+  });
+
+  it("happens on its own when the plugin sees the rename", async () => {
+    vi.useFakeTimers();
+    const app = new App();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const plugin = new BetterImagesPlugin(app as any, { id: "better-images", name: "x", version: "1", dir: ".obsidian/plugins/better-images" } as any);
+    await plugin.saveData({ attachmentStewardImportChecked: true });
+    await plugin.onload();
+    const dune = withCovers(app, "Books/Dune.md", { Image: "[[Dune.jpg]]" }, ["Books/Images/Dune.jpg"]);
+
+    await app.vault.renameFile(dune, "Books/Arrakis.md");
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(app.vault.getAbstractFileByPath("Books/Images/Arrakis.jpg")).toBeInstanceOf(TFile);
+    vi.useRealTimers();
+  });
+});

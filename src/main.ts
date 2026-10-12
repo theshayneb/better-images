@@ -100,7 +100,18 @@ export default class BetterImagesPlugin extends Plugin {
                     }
                 })
             );
-            this.registerEvent(this.app.vault.on("rename", () => this.covers.invalidate()));
+            this.registerEvent(
+                this.app.vault.on("rename", (file, oldPath) => {
+                    this.covers.invalidate();
+                    if (!(file instanceof TFile) || file.extension !== "md") return;
+                    // Give Obsidian a moment to finish updating links and its metadata cache.
+                    window.setTimeout(() => {
+                        void this.covers.onNoteRenamed(file, oldPath).catch((err) =>
+                            console.error("[better-images] cover rename failed", err)
+                        );
+                    }, 500);
+                })
+            );
             this.registerEvent(this.app.vault.on("delete", () => this.covers.invalidate()));
         });
 

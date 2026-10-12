@@ -47,7 +47,8 @@ If a note's `Image` or `WideImage` property holds a web link (`https://…`), th
 - For other notes, a new link replaces the existing image of the same name.
 - The file extension comes from the downloaded image itself; links that don't lead to an image (for example a web page) are left as they are, with a notice.
 - Runs automatically a moment after a web link is added to one of those properties (turn off under **Cover images** in settings). For notes that already have web links, run **Download cover images in all notes**, **Download cover images in current note**, or right-click a folder → **Download cover images**.
-- The attachment organizer never moves or renames cover images (files linked from `Image` or `WideImage`).
+- Renaming or moving a note renames its covers to match (`Dune.jpg` → `Dune Messiah.jpg`) and moves them to the `Images` folder next to the note, updating the properties. Only covers named after the note are renamed; shared album covers and other images stay as they are.
+- The attachment organizer itself never moves or renames cover images (files linked from `Image` or `WideImage`).
 
 ## Organizing attachments
 

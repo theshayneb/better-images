@@ -7,6 +7,11 @@ export const COVER_PROPERTIES = [
 /** Folder, next to the note, that downloaded covers are saved in. */
 export const COVER_FOLDER = "Images";
 
+/** The cover folder for a note in `parentPath` (the vault root is "" or "/"). */
+export function coverFolderFor(parentPath: string): string {
+    return parentPath && parentPath !== "/" ? `${parentPath}/${COVER_FOLDER}` : COVER_FOLDER;
+}
+
 export const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif", "avif", "svg"];
 
 const CONTENT_TYPE_EXTENSIONS = new Map<string, string>([
@@ -33,7 +38,7 @@ export function propertyText(value: unknown): string | null {
 }
 
 /** Turns `[[Target|Alias]]` into `Target`; other text is returned unchanged. */
-function stripWikiLink(text: string): string {
+export function stripWikiLink(text: string): string {
     const match = /^\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]$/.exec(text.trim());
     return (match ? match[1] : text).trim();
 }
