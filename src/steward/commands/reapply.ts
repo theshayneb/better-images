@@ -21,7 +21,7 @@ async function buildSummary(app: App, store: Store, paths: string[]): Promise<{ 
     if (!record) continue;
 
     const parent = file.parent?.path ?? "";
-    if (!shouldManage(record.extension, parent, store.settings)) {
+    if (!shouldManage(record.extension, parent, store.settings) || store.isProtected(path)) {
       filtered++;
       continue;
     }

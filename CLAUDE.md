@@ -1,6 +1,6 @@
 # Better Images & Attachments: notes for Claude Code
 
-The owner's Obsidian plugin: Attachment Steward's attachment organizer (`src/steward/`) plus Image Converter's crop / rotate / flip editor (`src/crop/`), opened from image right-click menus. The owner only wants crop/rotate/flip from Image Converter; don't bring back its other features. Installed with BRAT from `theshayneb/better-images`. Keep the plugin id `better-images`: changing it would orphan the installed plugin and its `data.json`.
+The owner's Obsidian plugin: Attachment Steward's attachment organizer (`src/steward/`) plus Image Converter's crop / rotate / flip editor (`src/crop/`), opened from image right-click menus, plus a cover downloader (`src/covers/`) for web links in the `Image` / `WideImage` properties. The owner only wants crop/rotate/flip from Image Converter; don't bring back its other features. Installed with BRAT from `theshayneb/better-images`. Keep the plugin id `better-images`: changing it would orphan the installed plugin and its `data.json`.
 
 ## Workflow
 
@@ -23,7 +23,8 @@ npm run build
 
 ## Things to know
 
-- `data.json` holds the attachment settings under `attachmentSteward`. `src/main.ts` owns `saveData`; the organizer saves through the `StewardHost` it is given.
+- `data.json` holds the attachment settings under `attachmentSteward` and the cover settings under `coverImages`. `src/main.ts` owns `saveData`; the organizer saves through the `StewardHost` it is given.
 - Attachment records are sharded under the plugin folder in `records/`, not in `data.json`.
 - On first run (no `attachmentSteward` saved) the plugin imports the stand-alone Attachment Steward's `data.json` and `records/` (`src/steward/import.ts`); the settings tab has an Import button for doing it again.
+- Cover images: saved to `Images/` next to the note, named after the note (`-wide` for WideImage), or after the `Album` property for notes tagged `#song` (shared, reused if it exists). The organizer skips them via `Store.isProtected`, which `src/main.ts` points at `CoverDownloader.isCover`.
 - `src/steward/` keeps upstream Attachment Steward's code style (eslint override in `eslint.config.mjs`) so upstream fixes can be compared and ported.

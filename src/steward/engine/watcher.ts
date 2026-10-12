@@ -46,6 +46,7 @@ export class Watcher {
   private onCreate = (file: TAbstractFile): void => {
     if (!(file instanceof TFile)) return;
     if (this.store.has(file.path)) return;
+    if (this.store.isProtected(file.path)) return;
     if (!shouldManage(file.extension, file.parent?.path ?? "", this.store.settings)) return;
 
     if (this.claimReplacement(file)) return;

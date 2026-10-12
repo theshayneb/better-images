@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.3] - 2026-10-12
+
+- New: **cover images**. When a note's `Image` or `WideImage` property holds a web link, the image is downloaded to the `Images` folder next to the note and the property is changed to link to the saved file. It is named after the note (`Dune.jpg`, `Dune-wide.jpg`); notes tagged `#song` are named after their `Album` property instead, and songs on an album that already has an image reuse it without downloading again.
+- Happens automatically a moment after the link is added (can be turned off in settings), or on demand: commands "Download cover images in current note" / "in all notes", and "Download cover images" in a folder's right-click menu.
+- The attachment organizer leaves cover images (any file linked from an `Image` or `WideImage` property) where they are, with their names.
+
 ## [1.0.2] - 2026-10-11
 
 - Fixed: if version 1.0.0 had ever run, 1.0.1 skipped importing your Attachment Steward settings and used the default attachment settings instead. This version imports them once on start-up (replacing the defaults), as long as Attachment Steward is still installed in the vault.

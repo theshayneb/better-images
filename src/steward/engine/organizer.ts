@@ -40,7 +40,7 @@ export async function processAttachment(app: App, store: Store, file: TFile, not
   if (!record) return { action: "missing" };
 
   const parent = file.parent?.path ?? "";
-  if (!shouldManage(record.extension, parent, store.settings)) {
+  if (!shouldManage(record.extension, parent, store.settings) || store.isProtected(file.path)) {
     return { action: "filtered" };
   }
 

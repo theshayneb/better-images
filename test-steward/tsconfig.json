@@ -19,5 +19,5 @@
   "include": ["**/*.ts", "../vitest.steward.config.mts"],
   // plugin.test.ts loads the whole plugin, settings UI included, which the
   // simplified mock doesn't type; vitest still runs it.
-  "exclude": ["plugin.test.ts"]
+  "exclude": ["plugin.test.ts", "covers.test.ts"]
 }

@@ -235,6 +235,16 @@ export class FakeVault {
     return file._content;
   }
 
+  async createBinary(path: string, data: ArrayBuffer): Promise<TFile> {
+    const p = normalizePath(path);
+    if (this.files.has(p)) throw new Error(`File already exists: ${p}`);
+    return this.simulateCreate(p, { content: data });
+  }
+
+  async modifyBinary(file: TFile, data: ArrayBuffer): Promise<void> {
+    file._content = data;
+  }
+
   on(name: VaultEventName, cb: VaultEventCb): EventRef {
     let set = this.listeners.get(name);
     if (!set) {
@@ -284,7 +294,36 @@ export class FakeVault {
 export interface CachedMetadata {
   embeds?: { link: string }[];
   links?: { link: string }[];
-  frontmatterLinks?: { link: string }[];
+  frontmatterLinks?: { link: string; key?: string }[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  frontmatter?: Record<string, any>;
+  tags?: { tag: string }[];
+}
+
+/** Inline tags plus frontmatter `tags`, each with a leading "#", like Obsidian's getAllTags. */
+export function getAllTags(cache: CachedMetadata): string[] {
+  const out = (cache.tags ?? []).map((t) => t.tag);
+  const fm = cache.frontmatter?.tags;
+  for (const tag of Array.isArray(fm) ? fm : typeof fm === "string" ? fm.split(/[,\s]+/) : []) {
+    if (tag) out.push(String(tag).startsWith("#") ? String(tag) : `#${tag}`);
+  }
+  return out;
+}
+
+export interface RequestUrlResponse {
+  status: number;
+  headers: Record<string, string>;
+  arrayBuffer: ArrayBuffer;
+}
+let requestUrlHandler: (params: { url: string }) => Promise<RequestUrlResponse> = async () => {
+  throw new Error("no network in tests");
+};
+/** Test helper: decides what requestUrl returns. */
+export function setRequestUrlHandler(handler: typeof requestUrlHandler): void {
+  requestUrlHandler = handler;
+}
+export function requestUrl(params: { url: string; throw?: boolean }): Promise<RequestUrlResponse> {
+  return requestUrlHandler(params);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -305,6 +344,10 @@ export class FakeMetadataCache {
 
   getFileCache(file: TFile): CachedMetadata | null {
     return this.fileCaches.get(file) ?? null;
+  }
+
+  fileToLinktext(file: TFile, _sourcePath: string, _omitMdExtension?: boolean): string {
+    return file.name;
   }
 
   getFirstLinkpathDest(linkpath: string, _sourcePath: string): TFile | null {
@@ -333,6 +376,16 @@ export class FakeFileManager {
 
   async renameFile(file: TAbstractFile, newPath: string): Promise<void> {
     return this.vault.renameFile(file, newPath);
+  }
+
+  /** Edits the cached frontmatter in place (tests have no note text to rewrite). */
+  cache: FakeMetadataCache | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async processFrontMatter(file: TFile, fn: (frontmatter: Record<string, any>) => void): Promise<void> {
+    const cache = this.cache?.getFileCache(file) ?? {};
+    const frontmatter = { ...(cache.frontmatter ?? {}) };
+    fn(frontmatter);
+    this.cache?.setFileCache(file, { ...cache, frontmatter });
   }
 
   /** Overridable per test; default mirrors "same folder as the owning note". */
@@ -367,6 +420,10 @@ export class App {
   vault = new FakeVault();
   metadataCache = new FakeMetadataCache(this.vault);
   fileManager = new FakeFileManager(this.vault);
+
+  constructor() {
+    this.fileManager.cache = this.metadataCache;
+  }
   workspace = new FakeWorkspace();
 }
 

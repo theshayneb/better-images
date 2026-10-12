@@ -48,6 +48,12 @@ export class Store {
   readonly byNote = new Map<string, Set<string>>();
   readonly byMd5 = new Map<string, string[]>();
 
+  /**
+   * Files another feature of the plugin owns (cover images), which the
+   * organizer must never register, adopt or move. Set by the host plugin.
+   */
+  isProtected: (path: string) => boolean = () => false;
+
   private saveTimer: number | null = null;
   private readonly dirtyShards = new Set<string | null>(); // notePath, or null for the orphans bucket
 

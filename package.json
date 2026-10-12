@@ -1,7 +1,7 @@
 {
 	"name": "better-images",
-	"version": "1.0.2",
-	"description": "Keeps attachments organized in templated folders and filenames without breaking links (Attachment Steward), and lets you crop, rotate and flip images from their right-click menu.",
+	"version": "1.0.3",
+	"description": "Keeps attachments organized in templated folders and filenames without breaking links (Attachment Steward), downloads cover images linked in note properties, and lets you crop, rotate and flip images from their right-click menu.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",

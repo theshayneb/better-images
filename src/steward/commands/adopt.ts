@@ -19,6 +19,7 @@ function collectAdoptable(app: App, store: Store, notes: TFile[]): Map<string, s
     if (!cache) continue;
     for (const attachPath of referencedAttachments(app, note, cache, store.settings)) {
       if (store.get(attachPath)?.notePath) continue;
+      if (store.isProtected(attachPath)) continue;
       if (!found.has(attachPath)) found.set(attachPath, note.path);
     }
   }

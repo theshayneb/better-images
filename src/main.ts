@@ -1,4 +1,5 @@
-import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, TFile, TFolder } from "obsidian";
+import { CoverDownloader } from "./covers/CoverDownloader";
 import { Crop } from "./crop/Crop";
 import { imageLinkedAt, isEditableImage } from "./crop/imageLinks";
 import type { StewardHost } from "./steward/host";
@@ -15,6 +16,16 @@ const ATTACHMENTS_DATA_KEY = "attachmentSteward";
  */
 const IMPORT_CHECKED_KEY = "attachmentStewardImportChecked";
 
+/** Key in data.json holding the cover image settings. */
+const COVERS_DATA_KEY = "coverImages";
+
+interface CoverSettings {
+    /** Download a cover as soon as a web link appears in Image or WideImage. */
+    autoDownload: boolean;
+}
+
+const DEFAULT_COVER_SETTINGS: CoverSettings = { autoDownload: true };
+
 const DISABLE_STEWARD_HINT = "Turn off the Attachment Steward plugin so attachments aren't organized twice.";
 
 /**
@@ -23,6 +34,8 @@ const DISABLE_STEWARD_HINT = "Turn off the Attachment Steward plugin so attachme
  */
 export default class BetterImagesPlugin extends Plugin {
     steward!: StewardModule;
+    covers!: CoverDownloader;
+    coverSettings: CoverSettings = { ...DEFAULT_COVER_SETTINGS };
     private stewardData: unknown = null;
     private settingTab!: BetterImagesSettingTab;
 
@@ -30,6 +43,7 @@ export default class BetterImagesPlugin extends Plugin {
         const saved = (await this.loadData()) as Record<string, unknown> | null;
         this.stewardData = saved?.[ATTACHMENTS_DATA_KEY] ?? null;
         const importChecked = saved?.[IMPORT_CHECKED_KEY] === true;
+        this.coverSettings = { ...DEFAULT_COVER_SETTINGS, ...(saved?.[COVERS_DATA_KEY] as Partial<CoverSettings> | undefined) };
 
         const host: StewardHost = {
             app: this.app,
@@ -37,7 +51,7 @@ export default class BetterImagesPlugin extends Plugin {
             loadData: () => Promise.resolve(this.stewardData),
             saveData: async (data: unknown) => {
                 this.stewardData = data;
-                await this.saveData({ [ATTACHMENTS_DATA_KEY]: data, [IMPORT_CHECKED_KEY]: true });
+                await this.saveAll();
             },
         };
 
@@ -47,8 +61,11 @@ export default class BetterImagesPlugin extends Plugin {
             if (!imported && this.stewardData !== null) await host.saveData(this.stewardData);
         }
 
+        this.covers = new CoverDownloader(this.app);
         this.steward = new StewardModule(this, host);
         await this.steward.load();
+        // Downloaded covers stay where they are saved, named as they are.
+        this.steward.store.isProtected = (path) => this.covers.isCover(path);
 
         this.settingTab = new BetterImagesSettingTab(this.app, this, host);
         this.addSettingTab(this.settingTab);
@@ -57,10 +74,66 @@ export default class BetterImagesPlugin extends Plugin {
         };
 
         this.registerImageEditing();
+        this.registerCoverDownloads();
     }
 
     onunload() {
+        this.covers?.cancelAll();
         this.steward?.unload();
+    }
+
+    async saveAll() {
+        await this.saveData({
+            [ATTACHMENTS_DATA_KEY]: this.stewardData,
+            [IMPORT_CHECKED_KEY]: true,
+            [COVERS_DATA_KEY]: this.coverSettings,
+        });
+    }
+
+    private registerCoverDownloads() {
+        this.app.workspace.onLayoutReady(() => {
+            this.registerEvent(
+                this.app.metadataCache.on("changed", (file) => {
+                    this.covers.invalidate();
+                    if (this.coverSettings.autoDownload && file.extension === "md" && this.covers.hasWebCover(file)) {
+                        this.covers.schedule(file);
+                    }
+                })
+            );
+            this.registerEvent(this.app.vault.on("rename", () => this.covers.invalidate()));
+            this.registerEvent(this.app.vault.on("delete", () => this.covers.invalidate()));
+        });
+
+        this.addCommand({
+            id: "download-cover-images-current-note",
+            name: "Download cover images in current note",
+            checkCallback: (checking) => {
+                const note = this.app.workspace.getActiveFile();
+                if (!(note instanceof TFile) || note.extension !== "md") return false;
+                if (!checking) void this.covers.processNotes([note]);
+                return true;
+            },
+        });
+        this.addCommand({
+            id: "download-cover-images-all-notes",
+            name: "Download cover images in all notes",
+            callback: () => void this.covers.processNotes(this.app.vault.getMarkdownFiles()),
+        });
+
+        this.registerEvent(
+            this.app.workspace.on("file-menu", (menu, file) => {
+                if (!(file instanceof TFolder)) return;
+                menu.addItem((item) =>
+                    item
+                        .setTitle("Download cover images")
+                        .setIcon("image-down")
+                        .onClick(() => {
+                            const prefix = file.isRoot() ? "" : `${file.path}/`;
+                            void this.covers.processNotes(this.app.vault.getMarkdownFiles().filter((note) => note.path.startsWith(prefix)));
+                        })
+                );
+            })
+        );
     }
 
     /**
@@ -169,6 +242,21 @@ class BetterImagesSettingTab extends PluginSettingTab {
                 })
             );
 
+        new Setting(containerEl).setName("Cover images").setHeading();
+        new Setting(containerEl)
+            .setName("Download cover images automatically")
+            .setDesc(
+                // eslint-disable-next-line obsidianmd/ui/sentence-case -- Image, WideImage and Album are property names
+                "When a note's Image or WideImage property holds a web link, save the image to the Images folder next to the note and link the property to it. Named after the note (WideImage adds -wide); notes tagged #song use their Album property instead, so songs on one album share an image. Turn off to only download with the commands or the folder menu."
+            )
+            .addToggle((toggle) =>
+                toggle.setValue(this.plugin.coverSettings.autoDownload).onChange(async (value) => {
+                    this.plugin.coverSettings.autoDownload = value;
+                    await this.plugin.saveAll();
+                })
+            );
+
+        new Setting(containerEl).setName("Attachments").setHeading();
         this.plugin.steward.renderSettings(containerEl.createDiv(), () => this.display());
     }
 }
