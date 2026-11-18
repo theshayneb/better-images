@@ -2,6 +2,7 @@ import { App, Notice, setRequestUrlHandler, TFile } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CoverDownloader } from "../src/covers/CoverDownloader";
 import { coverBaseName, imageExtension, sanitizeFileName } from "../src/covers/names";
+import { SETTLE_MS } from "../src/background";
 import BetterImagesPlugin from "../src/main";
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]).buffer;
@@ -137,8 +138,8 @@ describe("covers and the attachment organizer", () => {
     const cover = app.vault.getAbstractFileByPath("Books/Images/Dune.jpg") as TFile;
     app.metadataCache.setFileCache(dune, { frontmatter: { Image: "[[Dune.jpg]]" }, frontmatterLinks: [{ key: "Image", link: "Dune.jpg" }] });
     app.metadataCache.resolvedLinks = { [dune.path]: { [cover.path]: 1 } };
-    app.metadataCache.trigger("changed", dune, "", app.metadataCache.getFileCache(dune));
-    await vi.advanceTimersByTimeAsync(15000);
+    app.metadataCache.trigger(dune, "", app.metadataCache.getFileCache(dune));
+    await vi.advanceTimersByTimeAsync(SETTLE_MS + 15000);
 
     expect(app.vault.getAbstractFileByPath("Books/Images/Dune.jpg")).toBe(cover);
     expect(plugin.steward.store.has(cover.path)).toBe(false);
@@ -211,7 +212,7 @@ describe("renaming a note renames its covers", () => {
     const dune = withCovers(app, "Books/Dune.md", { Image: "[[Dune.jpg]]" }, ["Books/Images/Dune.jpg"]);
 
     await app.vault.renameFile(dune, "Books/Arrakis.md");
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(SETTLE_MS + 1000);
 
     expect(app.vault.getAbstractFileByPath("Books/Images/Arrakis.jpg")).toBeInstanceOf(TFile);
     vi.useRealTimers();

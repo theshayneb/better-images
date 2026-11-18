@@ -425,6 +425,16 @@ export class App {
     this.fileManager.cache = this.metadataCache;
   }
   workspace = new FakeWorkspace();
+
+  /** Per-device storage (never synced), like Obsidian's vault-specific localStorage. */
+  readonly localStorage = new Map<string, unknown>();
+  loadLocalStorage(key: string): unknown {
+    return this.localStorage.has(key) ? this.localStorage.get(key) : null;
+  }
+  saveLocalStorage(key: string, data: unknown): void {
+    if (data === null) this.localStorage.delete(key);
+    else this.localStorage.set(key, data);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -459,6 +469,9 @@ export class Plugin {
   addCommand(_cmd: unknown): void {}
   addSettingTab(_tab: unknown): void {}
   registerEvent(_ref: EventRef): void {}
+  register(_cb: () => void): void {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  registerDomEvent(..._args: any[]): void {}
 }
 
 export class PluginSettingTab {
@@ -472,6 +485,10 @@ export class PluginSettingTab {
 // ---------------------------------------------------------------------------
 
 export class FakeEl {
+  /** Never on screen in tests. */
+  isShown(): boolean {
+    return false;
+  }
   tag: string;
   cls: string[] = [];
   text = "";

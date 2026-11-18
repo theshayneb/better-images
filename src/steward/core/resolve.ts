@@ -83,5 +83,11 @@ export async function resolveDestination(app: App, file: TFile, record: Attachme
     destPath = normalizePath(joinPath(folder, `${nameWithSuffix(n)}.${record.extension}`));
   }
 
+  // Already at the numbered name it would get (e.g. "Note-1.png" while
+  // "Note.png" is another file): nothing to move.
+  if (pathsEqual(file.path, destPath)) {
+    return { action: "skip", destPath, dedupe: n };
+  }
+
   return { action: "move", destPath, dedupe: n };
 }

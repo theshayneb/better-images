@@ -1,3 +1,4 @@
+import { normalizePath } from "obsidian";
 import type { StewardHost } from "../host";
 import { log } from "../log";
 import { DEFAULT_SETTINGS, ExcludedFolder, Settings } from "../settings/types";
@@ -6,6 +7,8 @@ import { AttachmentRecord, AttachmentShard, PluginData } from "./types";
 
 const SCHEMA = 2;
 const SAVE_DEBOUNCE_MS = 500;
+/** Record files read at once during start-up. */
+const SHARD_READ_BATCH = 50;
 
 /** Pre-v0.2 shape of the exclusion settings, replaced by `excludedFolders`. */
 interface LegacyExclusionFields {
@@ -56,27 +59,56 @@ export class Store {
 
   private saveTimer: number | null = null;
   private readonly dirtyShards = new Set<string | null>(); // notePath, or null for the orphans bucket
+  /** Content of each record file as last read or written, so unchanged ones aren't rewritten. */
+  private readonly shardContent = new Map<string, string>();
+  private legacyRecords: Record<string, AttachmentRecord> | undefined;
 
   constructor(private readonly plugin: StewardHost) {}
 
+  /** Settings and records. Start-up uses the two halves separately, so records load in the background. */
   async load(): Promise<void> {
+    await this.loadSettings();
+    await this.loadRecords();
+  }
+
+  /** Quick: reads only the settings. Records stay as they are until loadRecords. */
+  async loadSettings(): Promise<void> {
     const raw = (await this.plugin.loadData()) as (Partial<PluginData> & LegacyMonolithicData) | null;
-    const rawSettings = raw?.settings as (Partial<Settings> & LegacyExclusionFields) | undefined;
+    this.data.schema = SCHEMA;
+    this.data.settings = Store.settingsFrom(raw?.settings);
+    this.legacyRecords = raw?.attachments;
+  }
+
+  /** Full settings from a stored (possibly partial or old-format) settings object. */
+  static settingsFrom(stored: unknown): Settings {
+    const rawSettings = stored as (Partial<Settings> & LegacyExclusionFields) | undefined;
     const migratedExcludedFolders = migrateExcludedFolders(rawSettings);
-    this.data = {
-      schema: SCHEMA,
-      settings: {
-        ...DEFAULT_SETTINGS,
-        ...(rawSettings ?? {}),
-        ...(migratedExcludedFolders ? { excludedFolders: migratedExcludedFolders } : {}),
-      },
-      attachments: await this.loadShards(),
+    const settings: Settings & LegacyExclusionFields = {
+      ...DEFAULT_SETTINGS,
+      ...(rawSettings ?? {}),
+      ...(migratedExcludedFolders ? { excludedFolders: migratedExcludedFolders } : {}),
     };
+    delete settings.excludedPaths;
+    delete settings.excludeSubpaths;
+    return settings;
+  }
+
+  /** Replaces the settings in place (e.g. after Sync delivered new ones), keeping the same object for anyone holding it. */
+  replaceSettings(settings: Settings): void {
+    const target = this.data.settings as unknown as Record<string, unknown>;
+    for (const key of Object.keys(target)) delete target[key];
+    Object.assign(target, settings);
+  }
+
+  async loadRecords(): Promise<void> {
+    this.data.attachments = await this.loadShards();
 
     // One-time upgrade from pre-v0.3 data.json, which kept every record
     // inline. Shard-sourced records win on conflict — they're the newer format.
-    if (raw?.attachments) {
-      for (const [path, record] of Object.entries(raw.attachments)) {
+    const legacy = this.legacyRecords;
+    this.legacyRecords = undefined;
+    if (legacy) {
+      for (const [path, record] of Object.entries(legacy)) {
         if (!(path in this.data.attachments)) {
           this.data.attachments[path] = record;
           this.dirtyShards.add(record.notePath);
@@ -98,15 +130,29 @@ export class Store {
     const dir = `${pluginDataDir(this.plugin)}/${RECORDS_DIR}`;
     if (!(await adapter.exists(dir))) return out;
 
-    const { files } = await adapter.list(dir);
-    for (const file of files) {
-      if (!file.endsWith(".json")) continue;
-      try {
-        const shard = JSON.parse(await adapter.read(file)) as AttachmentShard;
-        Object.assign(out, shard.attachments);
-      } catch (err) {
-        log.error(`failed to read attachment shard ${file}`, err);
-      }
+    const files = (await adapter.list(dir)).files.filter((file) => file.endsWith(".json"));
+    // Read in parallel batches: one file per note with attachments adds up in a large vault.
+    for (let start = 0; start < files.length; start += SHARD_READ_BATCH) {
+      const batch = files.slice(start, start + SHARD_READ_BATCH);
+      const contents = await Promise.all(
+        batch.map((file) =>
+          adapter.read(file).catch((err) => {
+            log.error(`failed to read attachment shard ${file}`, err);
+            return null;
+          })
+        )
+      );
+      batch.forEach((file, i) => {
+        const text = contents[i];
+        if (text === null) return;
+        try {
+          const shard = JSON.parse(text) as AttachmentShard;
+          Object.assign(out, shard.attachments);
+          this.shardContent.set(normalizePath(file), text);
+        } catch (err) {
+          log.error(`failed to read attachment shard ${file}`, err);
+        }
+      });
     }
     return out;
   }
@@ -284,14 +330,18 @@ export class Store {
     const adapter = this.plugin.app.vault.adapter;
 
     if (Object.keys(attachments).length === 0) {
+      this.shardContent.delete(path);
       if (await adapter.exists(path)) await adapter.remove(path);
       return;
     }
 
+    const shard: AttachmentShard = { schema: 1, notePath, attachments };
+    const text = JSON.stringify(shard);
+    if (this.shardContent.get(path) === text) return;
     const parent = path.slice(0, path.lastIndexOf("/"));
     await ensureAdapterFolder(this.plugin.app, parent);
-    const shard: AttachmentShard = { schema: 1, notePath, attachments };
-    await adapter.write(path, JSON.stringify(shard));
+    await adapter.write(path, text);
+    this.shardContent.set(path, text);
   }
 
   private collectShard(notePath: string | null): Record<string, AttachmentRecord> {

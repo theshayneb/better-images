@@ -1,5 +1,6 @@
 import { App } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SETTLE_MS } from "../src/background";
 import BetterImagesPlugin from "../src/main";
 
 const DIR = ".obsidian/plugins/better-images";
@@ -33,7 +34,7 @@ describe("the whole plugin organizes a pasted image", () => {
     app.metadataCache.resolvedLinks = { [note.path]: { "Folder/Pasted image.png": 1 } };
 
     app.vault.simulateCreate("Folder/Pasted image.png");
-    await vi.advanceTimersByTimeAsync(3000);
+    await vi.advanceTimersByTimeAsync(SETTLE_MS + 3000);
 
     expect(app.vault.getAbstractFileByPath("Folder/Pasted image.png")).toBeNull();
   });
@@ -46,7 +47,7 @@ describe("the whole plugin organizes a pasted image", () => {
     app.metadataCache.resolvedLinks = { [note.path]: { "Folder/cat.png": 1 } };
 
     app.vault.simulateCreate("Folder/cat.png");
-    await vi.advanceTimersByTimeAsync(3000);
+    await vi.advanceTimersByTimeAsync(SETTLE_MS + 3000);
 
     expect(app.vault.getAbstractFileByPath("Folder/cat.png")).toBeNull();
   });

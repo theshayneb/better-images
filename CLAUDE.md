@@ -23,6 +23,7 @@ npm run build
 
 ## Things to know
 
+- Several devices share the vault through Obsidian Sync; the desktop is always on, the phone and tablet sync rarely. Automatic vault changes (cover downloads and renames, organizing attachments) must go through `BackgroundTasks` (`src/background.ts`): only when `enabled` (device-local via `app.saveLocalStorage`, default off on mobile) and via `whenReady` (45 s after start-up/resume). Never write `data.json`, record files or images when the content is unchanged; `saveAll` and `Store.flushShard` already skip those. `onExternalSettingsChange` merges incoming settings.
 - `data.json` holds the attachment settings under `attachmentSteward` and the cover settings under `coverImages`. `src/main.ts` owns `saveData`; the organizer saves through the `StewardHost` it is given.
 - Attachment records are sharded under the plugin folder in `records/`, not in `data.json`.
 - On first run (no `attachmentSteward` saved) the plugin imports the stand-alone Attachment Steward's `data.json` and `records/` (`src/steward/import.ts`); the settings tab has an Import button for doing it again.

@@ -6,7 +6,7 @@ import { pruneCommand, pruneFolderCommand } from "./commands/prune";
 import { reapplyActiveNoteCommand, reapplyAllCommand, reapplyFolderCommand } from "./commands/reapply";
 import { repairStampedNamesCommand } from "./commands/repair";
 import { addExcludedFolder, isFolderListed, removeExcludedFolder, renameExcludedFolders } from "./core/exclusions";
-import { Watcher } from "./engine/watcher";
+import { AutomationGate, Watcher } from "./engine/watcher";
 import { configureLogging, flushLog, log } from "./log";
 import { renderStewardSettings } from "./settings/tab";
 import { Store } from "./store/store";
@@ -18,9 +18,9 @@ interface Commands {
   adoptActiveNote: () => Promise<void>;
   adoptVault: () => Promise<void>;
   adoptFolder: (folder: TFolder) => Promise<void>;
-  prune: () => void;
-  pruneFolder: (folder: TFolder) => void;
-  findOrphansFolder: (folder: TFolder) => void;
+  prune: () => Promise<void>;
+  pruneFolder: (folder: TFolder) => Promise<void>;
+  findOrphansFolder: (folder: TFolder) => Promise<void>;
   repairStampedNames: () => Promise<void>;
 }
 
@@ -32,6 +32,8 @@ interface Commands {
  */
 export class StewardModule {
   store!: Store;
+  /** Settles once the attachment records have been read; they load in the background so start-up stays quick. */
+  recordsLoaded: Promise<void> = Promise.resolve();
   private watcher!: Watcher;
   private commands!: Commands;
 
@@ -40,7 +42,8 @@ export class StewardModule {
 
   constructor(
     readonly plugin: Plugin,
-    readonly host: StewardHost
+    readonly host: StewardHost,
+    private readonly gate?: AutomationGate
   ) {}
 
   get app() {
@@ -49,27 +52,37 @@ export class StewardModule {
 
   async load(): Promise<void> {
     this.store = new Store(this.host);
-    await this.store.load();
+    await this.store.loadSettings();
     this.applyLogging();
+    this.recordsLoaded = this.store.loadRecords().catch((err) => log.error("failed to load attachment records", err));
 
-    this.watcher = new Watcher(this.app, this.store);
+    this.watcher = new Watcher(this.app, this.store, this.gate);
     // 'create' fires for every pre-existing file on vault load too — only
-    // start reacting once the initial layout (and initial file flood) settles.
+    // start reacting once the initial layout (and initial file flood) settles,
+    // and the records saying what's already organized are in.
     this.app.workspace.onLayoutReady(() => {
-      this.watcher.register((ref) => this.plugin.registerEvent(ref));
+      this.watcher.register((ref) => this.plugin.registerEvent(ref), this.recordsLoaded);
     });
 
+    // Commands wait for the records, in case they're used right after start-up.
+    const afterRecords =
+      <A extends unknown[]>(command: (...args: A) => unknown) =>
+      async (...args: A): Promise<void> => {
+        await this.recordsLoaded;
+        await command(...args);
+      };
+
     this.commands = {
-      reapplyAll: reapplyAllCommand(this.app, this.store, this.watcher.internalMoves),
-      reapplyActiveNote: reapplyActiveNoteCommand(this.app, this.store, this.watcher.internalMoves),
-      reapplyFolder: reapplyFolderCommand(this.app, this.store, this.watcher.internalMoves),
-      adoptActiveNote: adoptActiveNoteCommand(this.app, this.store, this.watcher.internalMoves),
-      adoptVault: adoptVaultCommand(this.app, this.store, this.watcher.internalMoves),
-      adoptFolder: adoptFolderCommand(this.app, this.store, this.watcher.internalMoves),
-      prune: pruneCommand(this.app, this.store),
-      pruneFolder: pruneFolderCommand(this.app, this.store),
-      findOrphansFolder: findOrphansCommand(this.app, this.store.settings),
-      repairStampedNames: repairStampedNamesCommand(this.app, this.store, this.watcher.internalMoves),
+      reapplyAll: afterRecords(reapplyAllCommand(this.app, this.store, this.watcher.internalMoves)),
+      reapplyActiveNote: afterRecords(reapplyActiveNoteCommand(this.app, this.store, this.watcher.internalMoves)),
+      reapplyFolder: afterRecords(reapplyFolderCommand(this.app, this.store, this.watcher.internalMoves)),
+      adoptActiveNote: afterRecords(adoptActiveNoteCommand(this.app, this.store, this.watcher.internalMoves)),
+      adoptVault: afterRecords(adoptVaultCommand(this.app, this.store, this.watcher.internalMoves)),
+      adoptFolder: afterRecords(adoptFolderCommand(this.app, this.store, this.watcher.internalMoves)),
+      prune: afterRecords(pruneCommand(this.app, this.store)),
+      pruneFolder: afterRecords(pruneFolderCommand(this.app, this.store)),
+      findOrphansFolder: afterRecords(findOrphansCommand(this.app, this.store.settings)),
+      repairStampedNames: afterRecords(repairStampedNamesCommand(this.app, this.store, this.watcher.internalMoves)),
     };
 
     this.plugin.addCommand({
@@ -216,5 +229,5 @@ export class StewardModule {
   reapplyActiveNote = (): void => void this.commands.reapplyActiveNote();
   adoptActiveNote = (): void => void this.commands.adoptActiveNote();
   adoptVault = (): void => void this.commands.adoptVault();
-  prune = (): void => this.commands.prune();
+  prune = (): void => void this.commands.prune();
 }

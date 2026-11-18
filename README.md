@@ -20,6 +20,12 @@ The first time it runs, the plugin copies the settings and attachment records of
 
 You can repeat the import any time with **Import** at the top of this plugin's settings; it replaces the attachment settings and records with Attachment Steward's.
 
+## Several devices with Obsidian Sync
+
+Automatic changes to the vault (downloading covers, renaming covers when a note is renamed, organizing attachments) happen only on a device with **Run background tasks on this device** turned on, under **This device** in the settings. It's saved on each device and not synced: on by default for desktop, off for phone and tablet. Keep it on for one always-on device. Elsewhere, new attachments keep their original name until that device organizes them after they sync; commands and menus still work everywhere.
+
+Automatic work also waits 45 seconds after Obsidian starts, comes back to the foreground or comes back online, so Sync can catch up first. Settings and attachment records are only written when they actually change, and settings that arrive through Sync are taken in rather than overwritten.
+
 ## Crop, rotate or flip an image
 
 Open the editor in any of these ways:
@@ -46,7 +52,7 @@ If a note's `Image` or `WideImage` property holds a web link (`https://…`), th
 - Notes tagged `#song` with an `Album` property are named after the album, so all songs on an album share one image. If that album's image already exists, it is linked without downloading again.
 - For other notes, a new link replaces the existing image of the same name.
 - The file extension comes from the downloaded image itself; links that don't lead to an image (for example a web page) are left as they are, with a notice.
-- Runs automatically a moment after a web link is added to one of those properties (turn off under **Cover images** in settings). For notes that already have web links, run **Download cover images in all notes**, **Download cover images in current note**, or right-click a folder → **Download cover images**.
+- Runs automatically a moment after a web link is added to one of those properties, on the device running background tasks (turn off under **Cover images** in settings). For notes that already have web links, run **Download cover images in all notes**, **Download cover images in current note**, or right-click a folder → **Download cover images**.
 - Renaming or moving a note renames its covers to match (`Dune.jpg` → `Dune Messiah.jpg`) and moves them to the `Images` folder next to the note, updating the properties. Only covers named after the note are renamed; shared album covers and other images stay as they are.
 - The attachment organizer itself never moves or renames cover images (files linked from `Image` or `WideImage`).
 

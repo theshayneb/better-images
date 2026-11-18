@@ -21,6 +21,19 @@ const PROCESS_DEBOUNCE_MS = 200;
 const DELETE_GRACE_MS = 3000;
 
 /**
+ * Whether, and when, this device may organize attachments on its own. Only
+ * one always-on device should: elsewhere a file arriving through sync may
+ * already have been organized, and moving it again races that device.
+ */
+export interface AutomationGate {
+  readonly enabled: boolean;
+  /** Runs `task` once automatic work may start (e.g. after Sync settles); dropped if it's switched off by then. */
+  whenReady(task: () => void): void;
+}
+
+const ALWAYS: AutomationGate = { enabled: true, whenReady: (task) => task() };
+
+/**
  * Wires vault/metadata-cache events into the organize pipeline. Must be
  * constructed and `register()`-ed only inside `workspace.onLayoutReady()` —
  * 'create' fires for every pre-existing file on vault load otherwise.
@@ -34,16 +47,37 @@ export class Watcher {
   readonly internalMoves = new InternalMoveTracker();
   private processTimer: number | null = null;
 
-  constructor(private readonly app: App, private readonly store: Store) {}
+  constructor(
+    private readonly app: App,
+    private readonly store: Store,
+    private readonly gate: AutomationGate = ALWAYS
+  ) {}
 
-  register(registerEvent: (ref: EventRef) => void): void {
-    registerEvent(this.app.vault.on("create", this.onCreate));
-    registerEvent(this.app.metadataCache.on("changed", this.onMetadataChanged));
-    registerEvent(this.app.vault.on("rename", this.onRename));
-    registerEvent(this.app.vault.on("delete", this.onDelete));
+  /**
+   * Starts listening. Events that arrive before `ready` settles (the records
+   * saying what's already organized are still loading) are held and replayed
+   * in order afterwards, so a file Sync delivers right after start-up isn't missed.
+   */
+  register(registerEvent: (ref: EventRef) => void, ready?: Promise<void>): void {
+    let held: Array<() => void> | null = ready ? [] : null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const hold = <A extends any[]>(handler: (...args: A) => void) => (...args: A): void => {
+      if (held) held.push(() => handler(...args));
+      else handler(...args);
+    };
+    registerEvent(this.app.vault.on("create", hold(this.onCreate)));
+    registerEvent(this.app.metadataCache.on("changed", hold(this.onMetadataChanged)));
+    registerEvent(this.app.vault.on("rename", hold(this.onRename)));
+    registerEvent(this.app.vault.on("delete", hold(this.onDelete)));
+    void ready?.finally(() => {
+      const events = held ?? [];
+      held = null;
+      for (const replay of events) replay();
+    });
   }
 
   private onCreate = (file: TAbstractFile): void => {
+    if (!this.gate.enabled) return;
     if (!(file instanceof TFile)) return;
     if (this.store.has(file.path)) return;
     if (this.store.isProtected(file.path)) return;
@@ -142,7 +176,7 @@ export class Watcher {
   }
 
   private onMetadataChanged = (note: TFile, _data: string, cache: CachedMetadata): void => {
-    if (note.extension !== "md") return;
+    if (!this.gate.enabled || note.extension !== "md") return;
     for (const attachPath of referencedAttachments(this.app, note, cache, this.store.settings)) {
       if (this.pending.has(attachPath) || this.isOwnerlessOrphan(attachPath)) {
         this.claim(attachPath, note.path);
@@ -171,8 +205,10 @@ export class Watcher {
       return;
     }
 
-    if (file.extension === "md") {
-      void handleNoteRename(this.app, this.store, file, oldPath, this.internalMoves).catch((err) => log.error("note rename handling failed", err));
+    if (file.extension === "md" && this.gate.enabled) {
+      this.gate.whenReady(() => {
+        void handleNoteRename(this.app, this.store, file, oldPath, this.internalMoves).catch((err) => log.error("note rename handling failed", err));
+      });
     }
   };
 
@@ -243,11 +279,12 @@ export class Watcher {
     if (this.processTimer) return;
     this.processTimer = window.setTimeout(() => {
       this.processTimer = null;
-      void this.drainQueue();
+      this.gate.whenReady(() => void this.drainQueue());
     }, PROCESS_DEBOUNCE_MS);
   }
 
   private async drainQueue(): Promise<void> {
+    if (!this.gate.enabled) return;
     const batch = [...this.toProcess];
     this.toProcess.clear();
     let moved = 0;

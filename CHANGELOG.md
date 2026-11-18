@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.6] - 2026-11-18
+
+Stops devices overwriting each other through Obsidian Sync, and makes start-up faster.
+
+- New setting **Run background tasks on this device** (under **This device**), saved on each device and not synced. On by default for desktop, off for phone and tablet. Only a device with it on downloads cover images automatically, renames covers when a note is renamed, and organizes attachments. Elsewhere attachments are left as they are (pasted images keep their "Pasted image …" name) until the background device organizes them after they sync. Commands and menus still work on every device.
+- Automatic work waits 45 seconds after Obsidian starts, comes back to the foreground or comes back online, so Sync can bring the vault up to date first.
+- `data.json`, attachment record files and cover images are only written when their content actually changed. Before, every device rewrote `data.json` on every record save and every time Obsidian closed, so a device with old settings could overwrite newer ones.
+- Settings that arrive through Sync are now taken in straight away (merged with any change made on this device that wasn't saved yet), instead of being overwritten by this device's older copy later.
+- A cover rename no longer rewrites the note when Obsidian already updated the link.
+- Faster start-up: attachment records are read in parallel in the background instead of one by one before the plugin finishes loading. Files that arrive meanwhile are handled once the records are in.
+- Fixed: re-running rules on an attachment that already had its numbered name (`Note-1.png`) tried to move it onto itself.
+- Requires Obsidian 1.8.7 or newer.
+
 ## [1.0.5] - 2026-10-12
 
 - Fixed: renaming a note (for example a #book note) left its cover images under the old name. Now `Images/<old name>.jpg` and `<old name>-wide.jpg` are renamed to the note's new name, moved to the `Images` folder next to the note if the note moved, and the `Image` / `WideImage` properties are updated. Album covers of #song notes are shared and stay as they are; images with other names are left alone, and an existing image with the new name is never overwritten.

@@ -165,7 +165,8 @@ export class CoverDownloader {
         try {
             const existing = this.app.vault.getAbstractFileByPath(path);
             if (existing instanceof TFile) {
-                await this.app.vault.modifyBinary(existing, data);
+                // Same picture again: leave the file (and its modified time) alone.
+                if (!sameBytes(await this.app.vault.readBinary(existing), data)) await this.app.vault.modifyBinary(existing, data);
                 return existing;
             }
             return await this.app.vault.createBinary(path, data);
@@ -220,11 +221,13 @@ export class CoverDownloader {
             }
         }
 
-        // Obsidian may already have updated the links; set them anyway in case
-        // "Automatically update internal links" is off.
-        if (Object.keys(updates).length > 0) {
+        // Obsidian may already have updated the links; set any it didn't (e.g. with
+        // "Automatically update internal links" off), and don't rewrite the note otherwise.
+        const current = this.app.metadataCache.getFileCache(note)?.frontmatter as Record<string, unknown> | undefined;
+        const stale = Object.entries(updates).filter(([key, link]) => propertyText(current?.[key]) !== link);
+        if (stale.length > 0) {
             await this.app.fileManager.processFrontMatter(note, (fm: Record<string, unknown>) => {
-                for (const [key, link] of Object.entries(updates)) fm[key] = link;
+                for (const [key, link] of stale) fm[key] = link;
             });
         }
         this.invalidate();
@@ -256,4 +259,12 @@ export class CoverDownloader {
             new Notice(`Couldn't download cover image:\n${result.errors.slice(0, 5).join("\n")}`, 10000);
         }
     }
+}
+
+function sameBytes(first: ArrayBuffer, second: ArrayBuffer): boolean {
+    if (first.byteLength !== second.byteLength) return false;
+    const left = new Uint8Array(first);
+    const right = new Uint8Array(second);
+    for (let i = 0; i < left.length; i++) if (left[i] !== right[i]) return false;
+    return true;
 }
