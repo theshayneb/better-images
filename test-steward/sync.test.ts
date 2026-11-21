@@ -1,6 +1,6 @@
 import { App, Platform, setRequestUrlHandler, TFile } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BackgroundTasks, SETTLE_MS } from "../src/background";
+import { AWAY_MS, BackgroundTasks, SETTLE_MS } from "../src/background";
 import BetterImagesPlugin from "../src/main";
 import { resolveDestination } from "../src/steward/core/resolve";
 import { DEFAULT_SETTINGS } from "../src/steward/settings/types";
@@ -68,6 +68,62 @@ describe("Run background tasks on this device", () => {
     expect(ran).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(2000);
     expect(ran).toHaveBeenCalledOnce();
+  });
+});
+
+describe("coming back to the app", () => {
+  it("on desktop, switching windows doesn't hold up automatic work (another window covering Obsidian counts as hidden)", async () => {
+    const tasks = new BackgroundTasks(new App() as never, false);
+    const ran = vi.fn();
+    tasks.whenReady(ran); // e.g. a new note's cover, queued at start-up
+    for (let elapsed = 0; elapsed < SETTLE_MS + 5000; elapsed += 20000) {
+      tasks.appHidden(); // off to the browser to copy a link
+      await vi.advanceTimersByTimeAsync(10000);
+      tasks.appVisible();
+      await vi.advanceTimersByTimeAsync(10000);
+    }
+    expect(ran).toHaveBeenCalledOnce();
+
+    const later = vi.fn();
+    tasks.appHidden();
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    tasks.appVisible();
+    tasks.whenReady(later);
+    expect(later).toHaveBeenCalledOnce();
+  });
+
+  it("on a phone or tablet, waits again only after a real absence", async () => {
+    const app = new App();
+    const tasks = new BackgroundTasks(app as never, true);
+    tasks.enabled = true;
+    await vi.advanceTimersByTimeAsync(SETTLE_MS);
+
+    tasks.appHidden();
+    await vi.advanceTimersByTimeAsync(AWAY_MS - 5000);
+    tasks.appVisible();
+    expect(tasks.ready).toBe(true);
+
+    tasks.appHidden();
+    await vi.advanceTimersByTimeAsync(AWAY_MS + 5000);
+    tasks.appVisible();
+    expect(tasks.ready).toBe(false);
+    await vi.advanceTimersByTimeAsync(SETTLE_MS);
+    expect(tasks.ready).toBe(true);
+  });
+
+  it("waits again after being offline for a while, but not after a blip", async () => {
+    const tasks = new BackgroundTasks(new App() as never, false);
+    await vi.advanceTimersByTimeAsync(SETTLE_MS);
+
+    tasks.wentOffline();
+    await vi.advanceTimersByTimeAsync(5000);
+    tasks.cameOnline();
+    expect(tasks.ready).toBe(true);
+
+    tasks.wentOffline();
+    await vi.advanceTimersByTimeAsync(AWAY_MS + 5000);
+    tasks.cameOnline();
+    expect(tasks.ready).toBe(false);
   });
 });
 

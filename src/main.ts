@@ -121,10 +121,12 @@ export default class BetterImagesPlugin extends Plugin {
         // The main window's visibility (the app going to the background), not a popout's.
         /* eslint-disable obsidianmd/prefer-active-doc */
         this.registerDomEvent(document, "visibilitychange", () => {
-            if (document.visibilityState === "visible") this.background.restart();
+            if (document.visibilityState === "visible") this.background.appVisible();
+            else this.background.appHidden();
         });
         /* eslint-enable obsidianmd/prefer-active-doc */
-        this.registerDomEvent(window, "online", () => this.background.restart());
+        this.registerDomEvent(window, "offline", () => this.background.wentOffline());
+        this.registerDomEvent(window, "online", () => this.background.cameOnline());
     }
 
     /**

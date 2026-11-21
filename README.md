@@ -24,7 +24,7 @@ You can repeat the import any time with **Import** at the top of this plugin's s
 
 Automatic changes to the vault (downloading covers, renaming covers when a note is renamed, organizing attachments) happen only on a device with **Run background tasks on this device** turned on, under **This device** in the settings. It's saved on each device and not synced: on by default for desktop, off for phone and tablet. Keep it on for one always-on device. Elsewhere, new attachments keep their original name until that device organizes them after they sync; commands and menus still work everywhere.
 
-Automatic work also waits 45 seconds after Obsidian starts, comes back to the foreground or comes back online, so Sync can catch up first. Settings and attachment records are only written when they actually change, and settings that arrive through Sync are taken in rather than overwritten.
+Automatic work also waits 45 seconds after Obsidian starts, after a phone or tablet comes back to the foreground, or after coming back online (each only after being away for at least 30 seconds), so Sync can catch up first. Settings and attachment records are only written when they actually change, and settings that arrive through Sync are taken in rather than overwritten.
 
 ## Crop, rotate or flip an image
 

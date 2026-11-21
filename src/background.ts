@@ -3,6 +3,12 @@ import type { App } from "obsidian";
 /** How long to wait after start-up, or after the app comes back to the foreground, before automatic vault changes. */
 export const SETTLE_MS = 45_000;
 
+/**
+ * Being away (in the background, or offline) for less than this doesn't
+ * restart the wait: Sync can't have fallen behind in so short a time.
+ */
+export const AWAY_MS = 30_000;
+
 /** Device-local (never synced) switch, stored in Obsidian's per-vault localStorage. */
 const LOCAL_STORAGE_KEY = "better-images:run-background-tasks";
 
@@ -20,6 +26,8 @@ const LOCAL_STORAGE_KEY = "better-images:run-background-tasks";
 export class BackgroundTasks {
     private settledAt: number;
     private timer: number | null = null;
+    private hiddenAt: number | null = null;
+    private offlineAt: number | null = null;
     private waiting: Array<() => void> = [];
 
     constructor(
@@ -47,7 +55,36 @@ export class BackgroundTasks {
         return this.enabled && Date.now() >= this.settledAt;
     }
 
-    /** Start waiting again, e.g. when the app returns to the foreground or comes back online. */
+    /** The app went to the background. */
+    appHidden(): void {
+        this.hiddenAt = Date.now();
+    }
+
+    /**
+     * The app came back to the foreground. On a phone or tablet the app (and
+     * Sync) is paused in the background, so after a real absence, wait for
+     * Sync again. On desktop Obsidian keeps syncing while hidden (and the
+     * system reports it hidden whenever another window covers it), so this
+     * doesn't restart the wait there.
+     */
+    appVisible(): void {
+        const hiddenFor = this.hiddenAt === null ? 0 : Date.now() - this.hiddenAt;
+        this.hiddenAt = null;
+        if (this.isMobile && hiddenFor >= AWAY_MS) this.restart();
+    }
+
+    wentOffline(): void {
+        this.offlineAt = Date.now();
+    }
+
+    /** Back online after a real absence: Sync has catching up to do, so wait for it again. */
+    cameOnline(): void {
+        const offlineFor = this.offlineAt === null ? 0 : Date.now() - this.offlineAt;
+        this.offlineAt = null;
+        if (offlineFor >= AWAY_MS) this.restart();
+    }
+
+    /** Start waiting again. */
     restart(): void {
         this.settledAt = Date.now() + SETTLE_MS;
         this.arm();

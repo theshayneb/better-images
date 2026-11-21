@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.0.7] - 2026-11-21
+
+- Fixed: on desktop, covers of new notes often weren't downloaded automatically. Every time Obsidian came back to the foreground, which Windows and macOS also report when another window had been covering it, the 45-second wait for Sync started over, so queued work kept being put off. On desktop, coming back to the foreground no longer restarts the wait (Obsidian keeps syncing in the background there). On phone and tablet it restarts only after being away for at least 30 seconds, and coming back online only after being offline for at least 30 seconds.
+
 ## [1.0.6] - 2026-11-18
 
 Stops devices overwriting each other through Obsidian Sync, and makes start-up faster.
